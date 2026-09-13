@@ -1,0 +1,12 @@
+# Ignore .env files everywhere in the project
+.env
+*.env
+
+# Ignore credential keys everywhere
+credentials.json
+google-credentials.json
+
+# Build outputs & dependencies
+node_modules/
+dist/
+build/
