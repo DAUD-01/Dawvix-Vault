@@ -54,6 +54,194 @@ export const getVaultStats = async (_req: Request, res: Response): Promise<void>
   }
 };
 
+export const performDriveSync = async (
+  folderIdParam?: string
+): Promise<{
+  syncedCount: number;
+  deletedCount: number;
+  rootFolderId: string;
+}> => {
+  if (!isGoogleDriveConfigured()) {
+    throw new Error(
+      'Google Drive credentials not configured. Please ensure credentials.json or GOOGLE_CREDENTIALS_JSON is configured.'
+    );
+  }
+
+  const targetFolderId =
+    folderIdParam?.trim() ||
+    process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() ||
+    'root';
+
+  console.log(`[DriveSync] Initiating reconciliation sync with Google Drive. Target: ${targetFolderId}`);
+
+  let syncedCount = 0;
+  let deletedCount = 0;
+
+  if (targetFolderId === 'root') {
+    let pageToken: string | undefined = undefined;
+    const allItems: any[] = [];
+    const itemMap = new Map<string, any>();
+    const discoveredIds = new Set<string>();
+
+    do {
+      const response: any = await drive.files.list({
+        q: 'trashed = false',
+        fields: 'nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)',
+        pageSize: 1000,
+        pageToken,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+
+      const files = response.data.files || [];
+      for (const file of files) {
+        if (!file.id || !file.name) continue;
+        allItems.push(file);
+        itemMap.set(file.id, file);
+        discoveredIds.add(file.id);
+      }
+
+      pageToken = response.data.nextPageToken || undefined;
+    } while (pageToken);
+
+    // Upsert discovered items into MongoDB
+    for (const item of allItems) {
+      const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
+      let itemParents = item.parents || [];
+
+      const hasKnownParent = itemParents.some((pId: string) => itemMap.has(pId));
+      if (!hasKnownParent || itemParents.length === 0) {
+        if (!itemParents.includes('root')) {
+          itemParents = ['root', ...itemParents];
+        }
+      }
+
+      await FileMetadata.findOneAndUpdate(
+        { driveId: item.id },
+        {
+          driveId: item.id,
+          name: item.name,
+          mimeType: item.mimeType || 'application/octet-stream',
+          size: item.size ? parseInt(item.size, 10) : 0,
+          parents: itemParents,
+          isFolder,
+          lastSyncedAt: new Date(),
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      syncedCount++;
+    }
+
+    // Prune stale items: remove any records from MongoDB that no longer exist in Google Drive
+    const deleteResult = await FileMetadata.deleteMany({
+      driveId: { $nin: Array.from(discoveredIds) },
+    });
+    deletedCount = deleteResult.deletedCount || 0;
+  } else {
+    // Specific folder crawl
+    const folderQueue: string[] = [targetFolderId];
+    const visitedFolders = new Set<string>();
+    const discoveredIds = new Set<string>();
+
+    // Try fetching target folder's own metadata
+    try {
+      const targetMeta: any = await drive.files.get({
+        fileId: targetFolderId,
+        fields: 'id, name, mimeType, parents',
+        supportsAllDrives: true,
+      });
+      if (targetMeta?.data?.id) {
+        discoveredIds.add(targetMeta.data.id);
+        await FileMetadata.findOneAndUpdate(
+          { driveId: targetMeta.data.id },
+          {
+            driveId: targetMeta.data.id,
+            name: targetMeta.data.name || 'Root Folder',
+            mimeType: targetMeta.data.mimeType || 'application/vnd.google-apps.folder',
+            size: 0,
+            parents: targetMeta.data.parents || ['root'],
+            isFolder: true,
+            lastSyncedAt: new Date(),
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      }
+    } catch {
+      // Ignore if folder alias cannot be fetched directly
+    }
+
+    while (folderQueue.length > 0) {
+      const currentFolderId = folderQueue.shift()!;
+      if (visitedFolders.has(currentFolderId)) continue;
+      visitedFolders.add(currentFolderId);
+
+      let pageToken: string | undefined = undefined;
+
+      do {
+        const query = `'${currentFolderId}' in parents and trashed = false`;
+        const response: any = await drive.files.list({
+          q: query,
+          fields: 'nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)',
+          pageSize: 1000,
+          pageToken,
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+        });
+
+        const items = response.data.files || [];
+
+        for (const item of items) {
+          if (!item.id || !item.name) continue;
+
+          discoveredIds.add(item.id);
+          const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
+
+          await FileMetadata.findOneAndUpdate(
+            { driveId: item.id },
+            {
+              driveId: item.id,
+              name: item.name,
+              mimeType: item.mimeType || 'application/octet-stream',
+              size: item.size ? parseInt(item.size, 10) : 0,
+              parents: item.parents && item.parents.length > 0 ? item.parents : [currentFolderId],
+              isFolder,
+              lastSyncedAt: new Date(),
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+
+          syncedCount++;
+
+          if (isFolder && !visitedFolders.has(item.id)) {
+            folderQueue.push(item.id);
+          }
+        }
+
+        pageToken = response.data.nextPageToken || undefined;
+      } while (pageToken);
+    }
+
+    // Prune stale items within visited folders:
+    // Any record whose parent was searched but whose driveId was not returned by Drive
+    const deleteResult = await FileMetadata.deleteMany({
+      parents: { $in: Array.from(visitedFolders) },
+      driveId: { $nin: Array.from(discoveredIds) },
+    });
+    deletedCount = deleteResult.deletedCount || 0;
+  }
+
+  console.log(
+    `[DriveSync] Sync complete. Processed ${syncedCount} items, pruned ${deletedCount} stale items.`
+  );
+
+  return {
+    syncedCount,
+    deletedCount,
+    rootFolderId: targetFolderId,
+  };
+};
+
 /**
  * Returns cached file metadata from MongoDB for the requested folder, or searches across vault.
  * Supports query parameters:
@@ -62,6 +250,7 @@ export const getVaultStats = async (_req: Request, res: Response): Promise<void>
  * - search: text query filter
  * - sortBy: 'name' | 'size' | 'lastSyncedAt' | 'mimeType'
  * - order: 'asc' | 'desc'
+ * - refresh: 'true' to trigger a live reconciliation sync before returning files
  */
 export const getFiles = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -71,6 +260,16 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
     const searchQuery = (req.query.search as string)?.trim();
     const sortBy = (req.query.sortBy as string) || 'name';
     const order = (req.query.order as string)?.toLowerCase() === 'desc' ? -1 : 1;
+    const shouldRefresh = req.query.refresh === 'true';
+
+    // If refresh requested and Google Drive is configured, reconcile before serving
+    if (shouldRefresh && isGoogleDriveConfigured()) {
+      try {
+        await performDriveSync(folderId !== 'root' && folderId !== rootFolderId ? folderId : undefined);
+      } catch (syncErr) {
+        console.warn('[DriveController] Auto-sync on refresh failed:', (syncErr as Error).message);
+      }
+    }
 
     const filter: any = {};
 
@@ -140,158 +339,39 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
- * Recursively or globally lists files accessible to the service account
- * and upserts them into MongoDB using findOneAndUpdate({ driveId }, ..., { upsert: true }).
+ * Synchronizes files and folders from Google Drive into MongoDB.
+ * Deletes any items from MongoDB that were deleted or unshared in Google Drive.
  */
 export const syncDrive = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!isGoogleDriveConfigured()) {
-      res.status(400).json({
-        success: false,
-        message:
-          'Google Drive credentials not configured. Please ensure credentials.json or GOOGLE_CREDENTIALS_JSON is configured.',
-      });
-      return;
-    }
-
-    const targetFolderId =
-      (req.body.folderId as string)?.trim() ||
-      process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() ||
-      'root';
-
-    console.log(`[DriveSync] Initiating Google Drive sync. Target: ${targetFolderId}`);
-
-    let syncedCount = 0;
-
-    if (targetFolderId === 'root') {
-      let pageToken: string | undefined = undefined;
-      const allItems: any[] = [];
-      const itemMap = new Map<string, any>();
-
-      do {
-        const response: any = await drive.files.list({
-          q: 'trashed = false',
-          fields: 'nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)',
-          pageSize: 1000,
-          pageToken,
-          supportsAllDrives: true,
-          includeItemsFromAllDrives: true,
-        });
-
-        const files = response.data.files || [];
-        for (const file of files) {
-          allItems.push(file);
-          itemMap.set(file.id, file);
-        }
-
-        pageToken = response.data.nextPageToken || undefined;
-      } while (pageToken);
-
-      // Upsert discovered items into MongoDB
-      for (const item of allItems) {
-        if (!item.id || !item.name) continue;
-
-        const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
-        let itemParents = item.parents || [];
-
-        const hasKnownParent = itemParents.some((pId: string) => itemMap.has(pId));
-        if (!hasKnownParent || itemParents.length === 0) {
-          if (!itemParents.includes('root')) {
-            itemParents = ['root', ...itemParents];
-          }
-        }
-
-        await FileMetadata.findOneAndUpdate(
-          { driveId: item.id },
-          {
-            driveId: item.id,
-            name: item.name,
-            mimeType: item.mimeType || 'application/octet-stream',
-            size: item.size ? parseInt(item.size, 10) : 0,
-            parents: itemParents,
-            isFolder,
-            lastSyncedAt: new Date(),
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-
-        syncedCount++;
-      }
-    } else {
-      // Specific folder crawl
-      const folderQueue: string[] = [targetFolderId];
-      const visitedFolders = new Set<string>();
-
-      while (folderQueue.length > 0) {
-        const currentFolderId = folderQueue.shift()!;
-        if (visitedFolders.has(currentFolderId)) continue;
-        visitedFolders.add(currentFolderId);
-
-        let pageToken: string | undefined = undefined;
-
-        do {
-          const query = `'${currentFolderId}' in parents and trashed = false`;
-          const response: any = await drive.files.list({
-            q: query,
-            fields: 'nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)',
-            pageSize: 1000,
-            pageToken,
-            supportsAllDrives: true,
-            includeItemsFromAllDrives: true,
-          });
-
-          const items = response.data.files || [];
-
-          for (const item of items) {
-            if (!item.id || !item.name) continue;
-
-            const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
-
-            await FileMetadata.findOneAndUpdate(
-              { driveId: item.id },
-              {
-                driveId: item.id,
-                name: item.name,
-                mimeType: item.mimeType || 'application/octet-stream',
-                size: item.size ? parseInt(item.size, 10) : 0,
-                parents: item.parents && item.parents.length > 0 ? item.parents : [currentFolderId],
-                isFolder,
-                lastSyncedAt: new Date(),
-              },
-              { upsert: true, new: true, setDefaultsOnInsert: true }
-            );
-
-            syncedCount++;
-
-            if (isFolder && !visitedFolders.has(item.id)) {
-              folderQueue.push(item.id);
-            }
-          }
-
-          pageToken = response.data.nextPageToken || undefined;
-        } while (pageToken);
-      }
-    }
-
-    console.log(`[DriveSync] Sync complete. Processed ${syncedCount} items.`);
-
+    const targetFolderId = req.body?.folderId as string | undefined;
+    const result = await performDriveSync(targetFolderId);
     const creds = getGoogleCredentials();
+
+    let msg = '';
+    if (result.syncedCount > 0 || result.deletedCount > 0) {
+      msg = `Sync complete: ${result.syncedCount} items updated`;
+      if (result.deletedCount > 0) {
+        msg += `, ${result.deletedCount} removed/stale items pruned`;
+      }
+      msg += '.';
+    } else {
+      msg = `Sync completed. 0 items found. Share your Google Drive folder with "${creds?.client_email}" as Viewer.`;
+    }
 
     res.json({
       success: true,
-      message:
-        syncedCount > 0
-          ? `Google Drive sync completed. ${syncedCount} files and folders indexed.`
-          : `Sync completed. 0 items found. If your folder is empty, share your Google Drive folder with "${creds?.client_email}" as Viewer.`,
-      syncedCount,
+      message: msg,
+      syncedCount: result.syncedCount,
+      deletedCount: result.deletedCount,
       serviceAccountEmail: creds?.client_email || null,
-      rootFolderId: targetFolderId,
+      rootFolderId: result.rootFolderId,
     });
   } catch (error) {
     console.error('[DriveController] syncDrive error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to sync with Google Drive.',
+      message: (error as Error).message || 'Failed to sync with Google Drive.',
       error: (error as Error).message,
     });
   }

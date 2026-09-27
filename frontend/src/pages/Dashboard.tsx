@@ -168,13 +168,13 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   // Handle Sync Drive trigger
-  const handleSyncDrive = async () => {
+  const handleSyncDrive = async (folderId?: string) => {
     setIsSyncing(true);
     setSyncMessage(null);
     setErrorMessage(null);
 
     try {
-      const data = await driveService.syncDrive();
+      const data = await driveService.syncDrive(folderId);
       const msg = data.message || `Successfully synced items from Google Drive.`;
       setSyncMessage(msg);
       addToast(msg, 'success');
@@ -193,6 +193,11 @@ export const Dashboard: React.FC = () => {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  // Dedicated Refresh handler that reconciles with Google Drive and refreshes the view
+  const handleRefresh = async () => {
+    await handleSyncDrive(currentFolderId === 'root' ? undefined : currentFolderId);
   };
 
   // Folder navigation
@@ -366,7 +371,7 @@ export const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-teal-500 selection:text-white">
       {/* Top Navbar */}
       <Navbar
-        onSync={handleSyncDrive}
+        onSync={() => handleSyncDrive()}
         isSyncing={isSyncing}
         lastSyncedMessage={syncMessage}
         stats={vaultStats}
@@ -491,12 +496,13 @@ export const Dashboard: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => fetchFiles(currentFolderId, searchScope)}
-            title="Refresh current view"
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-teal-400 transition-colors"
+            onClick={handleRefresh}
+            disabled={isSyncing}
+            title="Reconcile with Google Drive and refresh"
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-400 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span>Refresh</span>
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-teal-400' : ''}`} />
+            <span>{isSyncing ? 'Syncing...' : 'Refresh & Sync'}</span>
           </button>
         </div>
 
@@ -610,7 +616,7 @@ export const Dashboard: React.FC = () => {
                   </p>
                   <button
                     type="button"
-                    onClick={handleSyncDrive}
+                    onClick={() => handleSyncDrive()}
                     disabled={isSyncing}
                     className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-teal-500 transition-all disabled:opacity-60"
                   >

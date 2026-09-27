@@ -49,6 +49,7 @@ export interface GetFilesOptions {
   search?: string;
   sortBy?: SortBy;
   order?: SortOrder;
+  refresh?: boolean;
 }
 
 export const driveService = {
@@ -67,6 +68,7 @@ export const driveService = {
       if (options.search) params.search = options.search;
       if (options.sortBy) params.sortBy = options.sortBy;
       if (options.order) params.order = options.order;
+      if (options.refresh) params.refresh = 'true';
     }
 
     const response = await api.get('/drive/files', { params });
@@ -75,7 +77,7 @@ export const driveService = {
 
   syncDrive: async (
     folderId?: string
-  ): Promise<{ success: boolean; message: string; syncedCount: number; serviceAccountEmail?: string }> => {
+  ): Promise<{ success: boolean; message: string; syncedCount: number; deletedCount?: number; serviceAccountEmail?: string }> => {
     const response = await api.post('/drive/sync', { folderId });
     return response.data;
   },
