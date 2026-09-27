@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 
 export const connectDB = async (): Promise<void> => {
   const mongoUri =
+    process.env.MONGODB_URI ||
     process.env.MONGO_URI ||
     'mongodb+srv://dawoodsardar252_db_user:hfISVZ7Gz03JebvT@cluster0.gmhmyxh.mongodb.net/university_vault?retryWrites=true&w=majority';
 
