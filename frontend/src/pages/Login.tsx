@@ -8,7 +8,6 @@ import {
   User,
   ArrowRight,
   AlertCircle,
-  KeyRound,
 } from "lucide-react";
 
 export const Login: React.FC = () => {
