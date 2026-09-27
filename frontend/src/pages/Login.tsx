@@ -2,13 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/api";
-import {
-  Shield,
-  Lock,
-  User,
-  ArrowRight,
-  AlertCircle,
-} from "lucide-react";
+import { Shield, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
 
 export const Login: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -63,9 +57,6 @@ export const Login: React.FC = () => {
           <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
             University Vault
           </h2>
-          <p className="mt-2 text-sm text-slate-400">
-            Bypass campus network blocklists with authenticated proxy streaming
-          </p>
         </div>
 
         {/* Login Card */}
