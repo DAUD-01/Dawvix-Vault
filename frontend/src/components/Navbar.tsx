@@ -36,9 +36,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 GATEWAY
               </span>
             </div>
-            <p className="hidden text-xs text-slate-400 sm:block">
-              Secure Cloud Stream & Proxy Explorer
-            </p>
           </div>
         </div>
 
