@@ -45,12 +45,41 @@ app.get('/api/health', (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/drive', driveRoutes);
 
+import path from 'path';
+import fs from 'fs';
+
+// Serve built frontend assets if dist exists
+const frontendDistPath = path.resolve(process.cwd(), 'frontend/dist');
+const altFrontendDistPath = path.resolve(process.cwd(), '../frontend/dist');
+const resolvedDist = fs.existsSync(frontendDistPath)
+  ? frontendDistPath
+  : fs.existsSync(altFrontendDistPath)
+  ? altFrontendDistPath
+  : null;
+
+if (resolvedDist) {
+  console.log(`[Server] Serving static frontend from: ${resolvedDist}`);
+  app.use(express.static(resolvedDist));
+}
+
 // Global 404 handler for unknown API routes
 app.use('/api/*', (_req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     message: 'API route not found.',
   });
+});
+
+// SPA fallback for all non-API GET requests
+app.get('*', (_req: Request, res: Response, next: NextFunction) => {
+  if (resolvedDist) {
+    const indexHtml = path.resolve(resolvedDist, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      res.sendFile(indexHtml);
+      return;
+    }
+  }
+  next();
 });
 
 // Global error handling middleware

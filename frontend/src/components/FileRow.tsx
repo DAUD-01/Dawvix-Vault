@@ -1,29 +1,43 @@
 import React, { useState } from 'react';
 import { FileItem } from '../types';
 import { getFileIcon, formatBytes } from '../utils/fileUtils';
-import { Download, ChevronRight, Loader2, Eye } from 'lucide-react';
+import { Download, ChevronRight, Loader2, Eye, Link, Check } from 'lucide-react';
+import { driveService } from '../services/api';
 
 interface FileRowProps {
   file: FileItem;
+  isSelected?: boolean;
+  onToggleSelect?: (fileId: string) => void;
   onOpenFolder: (folderId: string, folderName: string) => void;
   onDownloadFile: (fileId: string, filename: string) => Promise<void>;
   onPreviewFile: (file: FileItem) => void;
+  onToast?: (message: string, type: 'success' | 'info' | 'error') => void;
 }
 
 export const FileRow: React.FC<FileRowProps> = ({
   file,
+  isSelected = false,
+  onToggleSelect,
   onOpenFolder,
   onDownloadFile,
   onPreviewFile,
+  onToast,
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleClick = async () => {
     if (file.isFolder) {
       onOpenFolder(file.driveId, file.name);
     } else {
-      // Clicking file row opens in-window preview!
       onPreviewFile(file);
+    }
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleSelect) {
+      onToggleSelect(file.driveId);
     }
   };
 
@@ -42,6 +56,15 @@ export const FileRow: React.FC<FileRowProps> = ({
     onPreviewFile(file);
   };
 
+  const handleCopyLinkClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = window.location.origin + driveService.getViewUrl(file.driveId);
+    navigator.clipboard.writeText(url);
+    setIsCopied(true);
+    if (onToast) onToast(`Copied direct stream link for "${file.name}"`, 'success');
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
   const formattedDate = file.lastSyncedAt
     ? new Date(file.lastSyncedAt).toLocaleDateString(undefined, {
         month: 'short',
@@ -53,11 +76,27 @@ export const FileRow: React.FC<FileRowProps> = ({
   return (
     <tr
       onClick={handleClick}
-      className="group border-b border-slate-800/60 transition-colors hover:bg-slate-800/40 cursor-pointer"
+      className={`group border-b border-slate-800/60 transition-colors cursor-pointer ${
+        isSelected
+          ? 'bg-teal-950/30 hover:bg-teal-950/40'
+          : 'hover:bg-slate-800/40'
+      }`}
     >
-      {/* File / Folder Name and Icon */}
+      {/* File / Folder Name and Icon with Checkbox */}
       <td className="py-3.5 pl-4 pr-3 sm:pl-6 text-sm">
         <div className="flex items-center gap-3">
+          {!file.isFolder && onToggleSelect ? (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => {}}
+              onClick={handleCheckboxClick}
+              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-teal-500 focus:ring-teal-500/30 cursor-pointer"
+            />
+          ) : onToggleSelect ? (
+            <div className="w-4" />
+          ) : null}
+
           <div className="shrink-0 transition-transform group-hover:scale-110">
             {getFileIcon(file.mimeType, file.isFolder)}
           </div>
@@ -103,6 +142,16 @@ export const FileRow: React.FC<FileRowProps> = ({
           </div>
         ) : (
           <div className="inline-flex items-center gap-1.5">
+            {/* Direct stream link button */}
+            <button
+              type="button"
+              onClick={handleCopyLinkClick}
+              title="Copy direct stream link"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 shadow-sm transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300"
+            >
+              {isCopied ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Link className="h-3.5 w-3.5 text-teal-400" />}
+            </button>
+
             {/* View / Preview button */}
             <button
               type="button"

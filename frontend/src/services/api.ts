@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { FilesResponse, User } from '../types';
+import { FilesResponse, User, VaultStats, SortBy, SortOrder } from '../types';
 
 export const API_BASE_URL = '/api';
 
@@ -24,11 +24,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      if (window.location.pathname !== '/login') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      }
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
     return Promise.reject(error);
   }
@@ -46,9 +43,32 @@ export const authService = {
   },
 };
 
+export interface GetFilesOptions {
+  folderId?: string;
+  all?: boolean;
+  search?: string;
+  sortBy?: SortBy;
+  order?: SortOrder;
+}
+
 export const driveService = {
-  getFiles: async (folderId?: string): Promise<FilesResponse & { serviceAccountEmail?: string }> => {
-    const params = folderId ? { folderId } : {};
+  getStats: async (): Promise<{ success: boolean; stats: VaultStats }> => {
+    const response = await api.get('/drive/stats');
+    return response.data;
+  },
+
+  getFiles: async (options?: GetFilesOptions | string): Promise<FilesResponse> => {
+    let params: any = {};
+    if (typeof options === 'string') {
+      params = options ? { folderId: options } : {};
+    } else if (options) {
+      if (options.folderId) params.folderId = options.folderId;
+      if (options.all) params.all = 'true';
+      if (options.search) params.search = options.search;
+      if (options.sortBy) params.sortBy = options.sortBy;
+      if (options.order) params.order = options.order;
+    }
+
     const response = await api.get('/drive/files', { params });
     return response.data;
   },

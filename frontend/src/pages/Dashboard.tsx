@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { SearchBar } from '../components/SearchBar';
@@ -7,7 +8,15 @@ import { FileCard } from '../components/FileCard';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { driveService } from '../services/api';
-import { FileItem, BreadcrumbItem } from '../types';
+import {
+  FileItem,
+  BreadcrumbItem,
+  VaultStats,
+  SortBy,
+  SortOrder,
+  SearchScope,
+  ToastMessage,
+} from '../types';
 import {
   FolderUp,
   Inbox,
@@ -17,14 +26,24 @@ import {
   Info,
   Copy,
   Check,
+  Download,
+  Link,
+  CheckSquare,
+  Square,
+  X,
+  Sparkles,
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const [currentFolderId, setCurrentFolderId] = useState<string>('root');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialFolder = searchParams.get('folder') || 'root';
+
+  const [currentFolderId, setCurrentFolderId] = useState<string>(initialFolder);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
     { id: 'root', name: 'Vault Root' },
   ]);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [vaultStats, setVaultStats] = useState<VaultStats | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -34,20 +53,67 @@ export const Dashboard: React.FC = () => {
   );
   const [isEmailCopied, setIsEmailCopied] = useState<boolean>(false);
 
+  // Multi-selection state
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+
   // In-window file preview state
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
-  // Search, filter & display states
+  // Search, scope, filter, sort & display states
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchScope, setSearchScope] = useState<SearchScope>('folder');
   const [filterType, setFilterType] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<SortBy>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [isGrid, setIsGrid] = useState<boolean>(false);
 
-  // Fetch files whenever currentFolderId changes
-  const fetchFiles = async (folderId: string) => {
+  // Toast notification state
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const addToast = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
+    const id = `${Date.now()}_${Math.random()}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // Fetch live stats
+  const fetchStats = async () => {
+    try {
+      const data = await driveService.getStats();
+      if (data.success) {
+        setVaultStats(data.stats);
+        if (data.stats.serviceAccountEmail) {
+          setServiceAccountEmail(data.stats.serviceAccountEmail);
+        }
+      }
+    } catch {
+      // Ignore background stats load failure
+    }
+  };
+
+  // Fetch files whenever folder or global search mode changes
+  const fetchFiles = async (folderId: string, scope: SearchScope = searchScope) => {
     setIsLoading(true);
     setErrorMessage(null);
+    setSelectedFileIds(new Set());
+
     try {
-      const data = await driveService.getFiles(folderId);
+      const isGlobal = scope === 'vault';
+      const data = await driveService.getFiles({
+        folderId: isGlobal ? undefined : folderId,
+        all: isGlobal,
+        search: isGlobal && searchQuery ? searchQuery : undefined,
+        sortBy,
+        order: sortOrder,
+      });
+
       setFiles(data.files || []);
       if (data.serviceAccountEmail) {
         setServiceAccountEmail(data.serviceAccountEmail);
@@ -68,9 +134,38 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  // Initialize stats on mount
   useEffect(() => {
-    fetchFiles(currentFolderId);
-  }, [currentFolderId]);
+    fetchStats();
+  }, []);
+
+  // Sync folder state with URL parameter
+  useEffect(() => {
+    const urlFolder = searchParams.get('folder') || 'root';
+    if (urlFolder !== currentFolderId) {
+      setCurrentFolderId(urlFolder);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    fetchFiles(currentFolderId, searchScope);
+  }, [currentFolderId, searchScope, sortBy, sortOrder]);
+
+  // Keyboard shortcut for search focus
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === '/' &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   // Handle Sync Drive trigger
   const handleSyncDrive = async () => {
@@ -80,19 +175,21 @@ export const Dashboard: React.FC = () => {
 
     try {
       const data = await driveService.syncDrive();
-      setSyncMessage(data.message || `Successfully synced items from Google Drive.`);
+      const msg = data.message || `Successfully synced items from Google Drive.`;
+      setSyncMessage(msg);
+      addToast(msg, 'success');
       if (data.serviceAccountEmail) {
         setServiceAccountEmail(data.serviceAccountEmail);
       }
-      // Refresh current folder view
-      await fetchFiles(currentFolderId);
-      // Auto-hide success message after 8 seconds
+      await fetchFiles(currentFolderId, searchScope);
+      await fetchStats();
       setTimeout(() => setSyncMessage(null), 8000);
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||
         'Drive synchronization failed. Please check credentials in backend.';
       setErrorMessage(msg);
+      addToast(msg, 'error');
     } finally {
       setIsSyncing(false);
     }
@@ -101,13 +198,16 @@ export const Dashboard: React.FC = () => {
   // Folder navigation
   const handleOpenFolder = (folderId: string, folderName: string) => {
     setCurrentFolderId(folderId);
+    setSearchParams({ folder: folderId });
     setBreadcrumbs((prev) => [...prev, { id: folderId, name: folderName }]);
     setSearchQuery('');
+    setSearchScope('folder');
   };
 
   // Breadcrumb click navigation
   const handleSelectBreadcrumb = (folderId: string, index: number) => {
     setCurrentFolderId(folderId);
+    setSearchParams({ folder: folderId });
     setBreadcrumbs((prev) => prev.slice(0, index + 1));
     setSearchQuery('');
   };
@@ -123,10 +223,61 @@ export const Dashboard: React.FC = () => {
   // File download action
   const handleDownloadFile = async (fileId: string, filename: string) => {
     try {
+      addToast(`Starting download: "${filename}"...`, 'info');
       await driveService.downloadFile(fileId, filename);
+      addToast(`Download complete: "${filename}"`, 'success');
     } catch (err: any) {
-      alert(`Download error: ${err.message || 'Failed to download file'}`);
+      addToast(`Download failed: ${err.message || 'Error'}`, 'error');
     }
+  };
+
+  // Toggle multi-select
+  const handleToggleSelect = (fileId: string) => {
+    setSelectedFileIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(fileId)) {
+        next.delete(fileId);
+      } else {
+        next.add(fileId);
+      }
+      return next;
+    });
+  };
+
+  // Select/Deselect all in view
+  const handleSelectAllInView = () => {
+    const nonFolderIds = filteredFiles.filter((f) => !f.isFolder).map((f) => f.driveId);
+    if (selectedFileIds.size === nonFolderIds.length && nonFolderIds.length > 0) {
+      setSelectedFileIds(new Set());
+    } else {
+      setSelectedFileIds(new Set(nonFolderIds));
+    }
+  };
+
+  // Batch download selected files
+  const handleBatchDownload = async () => {
+    const selectedFiles = files.filter((f) => selectedFileIds.has(f.driveId) && !f.isFolder);
+    if (selectedFiles.length === 0) return;
+
+    addToast(`Queuing ${selectedFiles.length} files for download...`, 'info');
+    for (const file of selectedFiles) {
+      await handleDownloadFile(file.driveId, file.name);
+      // Short delay between concurrent browser triggers
+      await new Promise((r) => setTimeout(r, 600));
+    }
+  };
+
+  // Batch copy links
+  const handleBatchCopyLinks = () => {
+    const selectedFiles = files.filter((f) => selectedFileIds.has(f.driveId) && !f.isFolder);
+    if (selectedFiles.length === 0) return;
+
+    const urls = selectedFiles
+      .map((f) => `${f.name}:\n${window.location.origin}${driveService.getViewUrl(f.driveId)}`)
+      .join('\n\n');
+
+    navigator.clipboard.writeText(urls);
+    addToast(`Copied direct stream URLs for ${selectedFiles.length} files!`, 'success');
   };
 
   // Copy service account email helper
@@ -134,18 +285,21 @@ export const Dashboard: React.FC = () => {
     if (serviceAccountEmail) {
       navigator.clipboard.writeText(serviceAccountEmail);
       setIsEmailCopied(true);
+      addToast('Service account email copied to clipboard!', 'success');
       setTimeout(() => setIsEmailCopied(false), 2500);
     }
   };
 
-  // Client-side filtering & search
+  // Client-side filtering & sorting
   const filteredFiles = useMemo(() => {
-    return files.filter((file) => {
-      // 1. Text search match
-      const matchesSearch = file.name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase().trim());
-      if (!matchesSearch) return false;
+    let result = files.filter((file) => {
+      // 1. Text search match (if local search)
+      if (searchScope === 'folder' && searchQuery) {
+        const matchesSearch = file.name
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase().trim());
+        if (!matchesSearch) return false;
+      }
 
       // 2. Category filter
       if (filterType === 'all') return true;
@@ -176,12 +330,37 @@ export const Dashboard: React.FC = () => {
             file.mimeType.includes('tar') ||
             file.mimeType.includes('rar') ||
             file.mimeType.includes('code') ||
-            file.mimeType.includes('json'))
+            file.mimeType.includes('json') ||
+            /\.(zip|tar|gz|rar|7z|js|ts|py|json|html|css|cpp|c|java)$/i.test(file.name))
         );
       }
       return true;
     });
-  }, [files, searchQuery, filterType]);
+
+    // Sort order
+    result.sort((a, b) => {
+      if (a.isFolder && !b.isFolder) return -1;
+      if (!a.isFolder && b.isFolder) return 1;
+
+      let cmp = 0;
+      if (sortBy === 'size') {
+        cmp = a.size - b.size;
+      } else if (sortBy === 'lastSyncedAt') {
+        cmp = new Date(a.lastSyncedAt || 0).getTime() - new Date(b.lastSyncedAt || 0).getTime();
+      } else if (sortBy === 'mimeType') {
+        cmp = a.mimeType.localeCompare(b.mimeType);
+      } else {
+        cmp = a.name.localeCompare(b.name);
+      }
+      return sortOrder === 'desc' ? -cmp : cmp;
+    });
+
+    return result;
+  }, [files, searchQuery, searchScope, filterType, sortBy, sortOrder]);
+
+  const nonFolderInViewCount = filteredFiles.filter((f) => !f.isFolder).length;
+  const isAllSelected =
+    nonFolderInViewCount > 0 && selectedFileIds.size === nonFolderInViewCount;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-teal-500 selection:text-white">
@@ -190,14 +369,51 @@ export const Dashboard: React.FC = () => {
         onSync={handleSyncDrive}
         isSyncing={isSyncing}
         lastSyncedMessage={syncMessage}
+        stats={vaultStats}
       />
+
+      {/* Floating Toast Notification Container */}
+      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto flex items-center justify-between gap-3 rounded-xl border p-3.5 shadow-2xl backdrop-blur-md animate-slideIn ${
+              toast.type === 'success'
+                ? 'border-teal-500/40 bg-teal-950/90 text-teal-200'
+                : toast.type === 'error'
+                ? 'border-rose-500/40 bg-rose-950/90 text-rose-200'
+                : 'border-slate-800 bg-slate-900/90 text-slate-200'
+            }`}
+          >
+            <div className="flex items-center gap-2 text-xs font-medium">
+              {toast.type === 'success' ? (
+                <Check className="h-4 w-4 text-teal-400 shrink-0" />
+              ) : toast.type === 'error' ? (
+                <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />
+              ) : (
+                <Sparkles className="h-4 w-4 text-teal-400 shrink-0" />
+              )}
+              <span>{toast.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeToast(toast.id)}
+              className="p-1 text-slate-400 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
 
       {/* In-Window File Preview Modal */}
       {previewFile && (
         <FilePreviewModal
           file={previewFile}
+          filesList={filteredFiles}
           onClose={() => setPreviewFile(null)}
           onDownloadFile={handleDownloadFile}
+          onNavigateFile={(nextFile) => setPreviewFile(nextFile)}
         />
       )}
 
@@ -275,8 +491,8 @@ export const Dashboard: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => fetchFiles(currentFolderId)}
-            title="Refresh current folder"
+            onClick={() => fetchFiles(currentFolderId, searchScope)}
+            title="Refresh current view"
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-teal-400 transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -284,19 +500,68 @@ export const Dashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* Search, Filter & View Controls */}
+        {/* Search, Scope, Filter & View Controls */}
         <div className="mt-4">
           <SearchBar
+            searchInputRef={searchInputRef}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            searchScope={searchScope}
+            onScopeChange={setSearchScope}
             filterType={filterType}
             onFilterChange={setFilterType}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortChange={(by, order) => {
+              setSortBy(by);
+              setSortOrder(order);
+            }}
             isGrid={isGrid}
             onToggleGrid={setIsGrid}
             totalCount={files.length}
             filteredCount={filteredFiles.length}
           />
         </div>
+
+        {/* Multi-Selection Batch Action Floating Toolbar */}
+        {selectedFileIds.size > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-teal-500/40 bg-teal-950/40 p-3 text-xs text-teal-200 backdrop-blur animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-teal-300">
+                {selectedFileIds.size} file{selectedFileIds.size > 1 ? 's' : ''} selected
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBatchDownload}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 font-medium text-white shadow hover:bg-teal-500 transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Download All ({selectedFileIds.size})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBatchCopyLinks}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-900/60 px-3 py-1.5 font-medium text-teal-200 hover:bg-teal-800/60 transition-colors"
+              >
+                <Link className="h-3.5 w-3.5" />
+                <span>Copy Direct URLs</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedFileIds(new Set())}
+                className="rounded-lg p-1.5 text-teal-400 hover:text-white"
+                title="Clear selection"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Content Explorer Section */}
         <div className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-900/40 backdrop-blur-md overflow-hidden shadow-xl">
@@ -316,7 +581,8 @@ export const Dashboard: React.FC = () => {
                     No matching files found
                   </h3>
                   <p className="mt-1 text-sm text-slate-500 max-w-sm">
-                    No files or folders matched &quot;{searchQuery}&quot;. Try clearing your search or changing filters.
+                    No files or folders matched &quot;{searchQuery}&quot;{' '}
+                    {searchScope === 'folder' ? 'in this folder' : 'in the vault'}.
                   </p>
                   <button
                     type="button"
@@ -362,9 +628,12 @@ export const Dashboard: React.FC = () => {
                   <FileCard
                     key={file.id || file.driveId}
                     file={file}
+                    isSelected={selectedFileIds.has(file.driveId)}
+                    onToggleSelect={handleToggleSelect}
                     onOpenFolder={handleOpenFolder}
                     onDownloadFile={handleDownloadFile}
                     onPreviewFile={(f) => setPreviewFile(f)}
+                    onToast={addToast}
                   />
                 ))}
               </div>
@@ -375,7 +644,23 @@ export const Dashboard: React.FC = () => {
               <table className="min-w-full divide-y divide-slate-800/60 text-left">
                 <thead>
                   <tr className="bg-slate-950/60 text-xs uppercase tracking-wider text-slate-400">
-                    <th className="py-3.5 pl-4 pr-3 sm:pl-6 font-semibold">Name</th>
+                    <th className="py-3.5 pl-4 pr-3 sm:pl-6 font-semibold flex items-center gap-3">
+                      {nonFolderInViewCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleSelectAllInView}
+                          title={isAllSelected ? 'Deselect All' : 'Select All'}
+                          className="text-slate-400 hover:text-teal-400"
+                        >
+                          {isAllSelected ? (
+                            <CheckSquare className="h-4 w-4 text-teal-400" />
+                          ) : (
+                            <Square className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                      <span>Name</span>
+                    </th>
                     <th className="hidden px-3 py-3.5 font-semibold sm:table-cell">Size</th>
                     <th className="hidden px-3 py-3.5 font-semibold md:table-cell">Type</th>
                     <th className="hidden px-3 py-3.5 font-semibold lg:table-cell">Last Synced</th>
@@ -387,9 +672,12 @@ export const Dashboard: React.FC = () => {
                     <FileRow
                       key={file.id || file.driveId}
                       file={file}
+                      isSelected={selectedFileIds.has(file.driveId)}
+                      onToggleSelect={handleToggleSelect}
                       onOpenFolder={handleOpenFolder}
                       onDownloadFile={handleDownloadFile}
                       onPreviewFile={(f) => setPreviewFile(f)}
+                      onToast={addToast}
                     />
                   ))}
                 </tbody>

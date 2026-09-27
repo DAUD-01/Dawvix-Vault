@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { google, drive_v3 } from 'googleapis';
 
-let driveInstance: drive_v3.Drive | null = null;
 
 /**
  * Resolves Google Service Account credentials from:
@@ -45,21 +44,28 @@ export const getGoogleCredentials = (): any | null => {
   return null;
 };
 
-export const getGoogleDriveClient = (): drive_v3.Drive => {
-  if (driveInstance) {
-    return driveInstance;
-  }
+let driveInstance: drive_v3.Drive | null = null;
+let hasValidCreds: boolean = false;
 
+export const getGoogleDriveClient = (): drive_v3.Drive => {
   const credentials = getGoogleCredentials();
 
   if (!credentials) {
-    console.warn(
-      '[GoogleDrive] No Google Service Account credentials found. Live Drive syncing will be disabled until configured.'
-    );
-    const auth = new google.auth.GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-    });
-    driveInstance = google.drive({ version: 'v3', auth });
+    if (!driveInstance) {
+      console.warn(
+        '[GoogleDrive] No Google Service Account credentials found. Live Drive syncing will be disabled until configured.'
+      );
+      const auth = new google.auth.GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+      });
+      driveInstance = google.drive({ version: 'v3', auth });
+      hasValidCreds = false;
+    }
+    return driveInstance;
+  }
+
+  // If already instantiated with valid credentials, return cached instance
+  if (driveInstance && hasValidCreds) {
     return driveInstance;
   }
 
@@ -70,6 +76,7 @@ export const getGoogleDriveClient = (): drive_v3.Drive => {
     });
 
     driveInstance = google.drive({ version: 'v3', auth });
+    hasValidCreds = true;
     console.log(
       `[GoogleDrive] Initialized Google Drive client for Service Account: ${credentials.client_email}`
     );
@@ -87,5 +94,14 @@ export const isGoogleDriveConfigured = (): boolean => {
   return getGoogleCredentials() !== null;
 };
 
-// Export configured drive client instance
-export const drive = getGoogleDriveClient();
+// Export proxy instance that always routes to current drive client
+export const drive = new Proxy({} as drive_v3.Drive, {
+  get(_target, prop) {
+    const client = getGoogleDriveClient();
+    const val = (client as any)[prop];
+    if (typeof val === 'function') {
+      return val.bind(client);
+    }
+    return val;
+  },
+});

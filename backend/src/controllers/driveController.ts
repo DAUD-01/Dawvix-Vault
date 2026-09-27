@@ -3,18 +3,98 @@ import { drive, isGoogleDriveConfigured, getGoogleCredentials } from '../config/
 import { FileMetadata } from '../models/FileMetadata.js';
 
 /**
- * Returns cached file metadata from MongoDB for the requested folder.
- * Defaults to process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID or 'root'.
+ * Returns total vault statistics including file count, folder count, total size, and sync status.
+ */
+export const getVaultStats = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const [stats] = await FileMetadata.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalFiles: {
+            $sum: {
+              $cond: [{ $eq: ['$isFolder', false] }, 1, 0],
+            },
+          },
+          totalFolders: {
+            $sum: {
+              $cond: [{ $eq: ['$isFolder', true] }, 1, 0],
+            },
+          },
+          totalBytes: {
+            $sum: {
+              $cond: [{ $eq: ['$isFolder', false] }, '$size', 0],
+            },
+          },
+          lastSyncedAt: { $max: '$lastSyncedAt' },
+        },
+      },
+    ]);
+
+    const creds = getGoogleCredentials();
+
+    res.json({
+      success: true,
+      stats: {
+        totalFiles: stats?.totalFiles || 0,
+        totalFolders: stats?.totalFolders || 0,
+        totalBytes: stats?.totalBytes || 0,
+        lastSyncedAt: stats?.lastSyncedAt || null,
+        serviceAccountEmail: creds?.client_email || null,
+        gdriveConfigured: isGoogleDriveConfigured(),
+      },
+    });
+  } catch (error) {
+    console.error('[DriveController] getVaultStats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve vault statistics.',
+      error: (error as Error).message,
+    });
+  }
+};
+
+/**
+ * Returns cached file metadata from MongoDB for the requested folder, or searches across vault.
+ * Supports query parameters:
+ * - folderId: ID of folder to browse (default: root)
+ * - all: 'true' to search across entire vault ignoring parent
+ * - search: text query filter
+ * - sortBy: 'name' | 'size' | 'lastSyncedAt' | 'mimeType'
+ * - order: 'asc' | 'desc'
  */
 export const getFiles = async (req: Request, res: Response): Promise<void> => {
   try {
     const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() || 'root';
     const folderId = (req.query.folderId as string)?.trim() || rootFolderId;
+    const isGlobalSearch = req.query.all === 'true';
+    const searchQuery = (req.query.search as string)?.trim();
+    const sortBy = (req.query.sortBy as string) || 'name';
+    const order = (req.query.order as string)?.toLowerCase() === 'desc' ? -1 : 1;
 
-    // Retrieve cached items whose parents array includes folderId
-    const files = await FileMetadata.find({ parents: folderId })
-      .sort({ isFolder: -1, name: 1 })
-      .lean();
+    const filter: any = {};
+
+    if (!isGlobalSearch) {
+      filter.parents = folderId;
+    }
+
+    if (searchQuery) {
+      filter.name = { $regex: searchQuery, $options: 'i' };
+    }
+
+    // Build sort object: Folders always appear first in standard folder view
+    const sortObj: any = { isFolder: -1 };
+    if (sortBy === 'size') {
+      sortObj.size = order;
+    } else if (sortBy === 'lastSyncedAt') {
+      sortObj.lastSyncedAt = order;
+    } else if (sortBy === 'mimeType') {
+      sortObj.mimeType = order;
+    } else {
+      sortObj.name = order;
+    }
+
+    const files = await FileMetadata.find(filter).sort(sortObj).lean();
 
     // Retrieve folder metadata to help frontend display current folder name
     let currentFolder = null;
@@ -28,6 +108,7 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
       success: true,
       rootFolderId,
       currentFolderId: folderId,
+      isGlobalSearch,
       currentFolder: currentFolder
         ? {
             id: currentFolder.driveId,
@@ -83,7 +164,6 @@ export const syncDrive = async (req: Request, res: Response): Promise<void> => {
     let syncedCount = 0;
 
     if (targetFolderId === 'root') {
-      // For Service Accounts, querying trashed = false retrieves all items shared with or owned by the service account
       let pageToken: string | undefined = undefined;
       const allItems: any[] = [];
       const itemMap = new Map<string, any>();
@@ -107,14 +187,13 @@ export const syncDrive = async (req: Request, res: Response): Promise<void> => {
         pageToken = response.data.nextPageToken || undefined;
       } while (pageToken);
 
-      // Upsert into MongoDB
+      // Upsert discovered items into MongoDB
       for (const item of allItems) {
         if (!item.id || !item.name) continue;
 
         const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
         let itemParents = item.parents || [];
 
-        // If an item's parent is not in our discovered set, mark it as accessible from 'root'
         const hasKnownParent = itemParents.some((pId: string) => itemMap.has(pId));
         if (!hasKnownParent || itemParents.length === 0) {
           if (!itemParents.includes('root')) {
@@ -220,6 +299,7 @@ export const syncDrive = async (req: Request, res: Response): Promise<void> => {
 
 /**
  * Shared stream handler for both download (attachment) and view/preview (inline).
+ * Supports RFC 7233 byte-range requests for instant media seeking and resumable transfers.
  */
 const handleStream = async (
   req: Request,
@@ -279,17 +359,21 @@ const handleStream = async (
       return;
     }
 
+    // Safe ASCII fallback name for legacy header parsers
+    const safeAsciiName = downloadFileName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
+
     // 3. Google Workspace Docs (Docs, Sheets, Slides) -> Export as PDF
     if (mimeType.startsWith('application/vnd.google-apps.')) {
       const exportMimeType = 'application/pdf';
       if (!downloadFileName.toLowerCase().endsWith('.pdf')) {
         downloadFileName += '.pdf';
       }
+      const safePdfName = downloadFileName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
 
       res.setHeader('Content-Type', exportMimeType);
       res.setHeader(
         'Content-Disposition',
-        `${dispositionType}; filename="${encodeURIComponent(downloadFileName)}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`
+        `${dispositionType}; filename="${safePdfName}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`
       );
 
       const streamResponse = await drive.files.export(
@@ -300,8 +384,8 @@ const handleStream = async (
         { responseType: 'stream' }
       );
 
-      streamResponse.data.on('error', (err) => {
-        console.error('[DriveController] Export stream error:', err);
+      streamResponse.data.on('error', (err: any) => {
+        console.error('[DriveController] Export stream error:', err?.message || err);
         if (!res.headersSent) {
           res.status(500).json({ success: false, message: 'Streaming export error occurred.' });
         }
@@ -311,44 +395,76 @@ const handleStream = async (
       return;
     }
 
-    // 4. Binary/regular file streaming
+    // 4. Binary/regular file streaming with HTTP Range Request support
     res.setHeader('Content-Type', mimeType);
     res.setHeader(
       'Content-Disposition',
-      `${dispositionType}; filename="${encodeURIComponent(downloadFileName)}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`
+      `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`
     );
-
-    // Support partial content seeking for video/audio
     res.setHeader('Accept-Ranges', 'bytes');
 
-    if (file.size) {
-      res.setHeader('Content-Length', file.size);
+    const requestHeaders: Record<string, string> = {};
+    const rangeHeader = req.headers.range;
+
+    if (rangeHeader) {
+      requestHeaders['Range'] = rangeHeader;
     }
 
-    const streamResponse = await drive.files.get(
-      {
-        fileId,
-        alt: 'media',
-        supportsAllDrives: true,
-      },
-      { responseType: 'stream' }
-    );
+    try {
+      const streamResponse = await drive.files.get(
+        {
+          fileId,
+          alt: 'media',
+          supportsAllDrives: true,
+        },
+        {
+          headers: requestHeaders,
+          responseType: 'stream',
+        }
+      );
 
-    streamResponse.data.on('error', (err) => {
-      console.error('[DriveController] Download stream error:', err);
-      if (!res.headersSent) {
-        res.status(500).json({ success: false, message: 'Download streaming error occurred.' });
+      // Forward status code (206 Partial Content or 200 OK)
+      if (streamResponse.status === 206) {
+        res.status(206);
+        if (streamResponse.headers['content-range']) {
+          res.setHeader('Content-Range', streamResponse.headers['content-range']);
+        }
       }
-    });
 
-    streamResponse.data.pipe(res);
-  } catch (error) {
-    console.error('[DriveController] handleStream error:', error);
+      if (streamResponse.headers['content-length']) {
+        res.setHeader('Content-Length', streamResponse.headers['content-length']);
+      } else if (file.size && !rangeHeader) {
+        res.setHeader('Content-Length', file.size);
+      }
+
+      streamResponse.data.on('error', (err: any) => {
+        if (err?.code !== 'ECONNRESET' && err?.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+          console.error('[DriveController] Stream transfer error:', err?.message || err);
+        }
+      });
+
+      // Handle client disconnect gracefully
+      req.on('close', () => {
+        if (streamResponse.data && typeof streamResponse.data.destroy === 'function') {
+          streamResponse.data.destroy();
+        }
+      });
+
+      streamResponse.data.pipe(res);
+    } catch (streamErr: any) {
+      if (streamErr?.response?.status === 416) {
+        res.status(416).setHeader('Content-Range', `bytes */${file.size || 0}`).end();
+        return;
+      }
+      throw streamErr;
+    }
+  } catch (error: any) {
+    console.error('[DriveController] handleStream error:', error?.message || error);
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
         message: 'Failed to stream file from Google Drive.',
-        error: (error as Error).message,
+        error: error?.message || 'Stream error',
       });
     }
   }

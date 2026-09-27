@@ -5,8 +5,8 @@ import { authService } from '../services/api';
 import { Shield, Lock, User, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('dawood');
+  const [password, setPassword] = useState('dawood8822');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -89,7 +89,7 @@ export const Login: React.FC = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  placeholder="dawood"
                   className="block w-full rounded-xl border border-slate-800 bg-slate-950/60 py-2.5 pl-10 pr-3.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
@@ -142,9 +142,12 @@ export const Login: React.FC = () => {
             <div className="flex items-start gap-2 rounded-xl bg-slate-950/50 p-3 text-xs text-slate-400 border border-slate-800/50">
               <KeyRound className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-slate-300">Initial Setup Credentials:</span>
+                <span className="font-semibold text-slate-300">Vault Access Credentials:</span>
                 <p className="mt-0.5 text-slate-400">
-                  Username: <code className="text-teal-300">admin</code> | Password: <code className="text-teal-300">admin123</code>
+                  Username: <code className="text-teal-300">dawood</code> | Password: <code className="text-teal-300">dawood8822</code>
+                </p>
+                <p className="mt-0.5 text-slate-500 text-[11px]">
+                  (or Admin: <code className="text-teal-400/80">admin</code> / <code className="text-teal-400/80">admin123</code>)
                 </p>
               </div>
             </div>

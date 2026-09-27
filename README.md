@@ -24,20 +24,26 @@ It serves as an **authenticated streaming proxy** between your client device and
 - **Frontend (`/frontend`)**:
   - Vite + React 18 + TypeScript
   - Tailwind CSS + Lucide Icons (`lucide-react`)
-  - Axios with JWT Interceptor & Blob Stream Downloader
-  - Dynamic breadcrumbs navigation with history stack
-  - Client-side real-time search and MIME-category filters
+  - Axios with JWT Interceptors & Blob Stream Downloader
+  - Deep URL state syncing (`?folder=<id>`) for bookmarking and history
+  - In-window Multi-Format File Preview Modal (PDF, images with zoom, video & audio with playback speed controls, and code/text with line numbers & syntax wrapping)
+  - Previous / Next keyboard arrow browsing within folders
+  - Multi-file batch selection with bulk download and direct link export
+  - Global Vault Search vs. Folder-Local Search modes
+  - Sort by Name, Size, Date, and Type (ascending / descending)
+  - Interactive toast notification system
   - Table / List view and Grid view toggles
   - Route authentication guard (`<ProtectedRoute />`)
 
 - **Backend (`/backend`)**:
   - Node.js + Express + TypeScript
-  - Mongoose + MongoDB (for instant cached metadata indexing)
-  - `googleapis` (Drive v3) for recursive file listing, export, and proxy streaming
+  - Mongoose + MongoDB (for instant cached metadata indexing & live vault stats)
+  - `googleapis` (Drive v3) for recursive file indexing, export, and proxy streaming
+  - HTTP Range Requests (RFC 7233 / HTTP 206 Partial Content) for instant video/audio seeking and resumable downloads
+  - Dynamic Google Drive client resolution
   - `jsonwebtoken` (JWT) authentication & `bcryptjs` password hashing
-  - Auto-seeding initial administrator account
   - Google Docs / Sheets / Slides conversion to PDF export stream
-  - Binary file streaming directly piped to client HTTP response
+  - RFC 6266 & 5987 compliant Content-Disposition handling for multi-language filenames
 
 ---
 
@@ -49,10 +55,10 @@ university-vault/
 │   ├── src/
 │   │   ├── config/
 │   │   │   ├── db.ts           # MongoDB Mongoose connection
-│   │   │   └── googleDrive.ts  # GoogleAuth & Drive v3 client setup
+│   │   │   └── googleDrive.ts  # Dynamic GoogleAuth & Drive v3 client setup
 │   │   ├── controllers/
 │   │   │   ├── authController.ts   # Login, profile check & auto-admin setup
-│   │   │   └── driveController.ts  # File listing, recursive sync, proxy download
+│   │   │   └── driveController.ts  # File listing, stats, range streaming, proxy download
 │   │   ├── middleware/
 │   │   │   └── authMiddleware.ts   # Bearer & Query JWT verification
 │   │   ├── models/
@@ -70,28 +76,29 @@ university-vault/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Breadcrumbs.tsx # Clickable folder navigation stack
-│   │   │   ├── FileCard.tsx    # Grid view card
-│   │   │   ├── FileRow.tsx     # List view table row
-│   │   │   ├── LoadingSkeleton.tsx # Sleek skeleton loader
-│   │   │   ├── Navbar.tsx      # App header & sync trigger
-│   │   │   ├── ProtectedRoute.tsx # Route protection
-│   │   │   └── SearchBar.tsx   # Search & filter toolbar
+│   │   │   ├── Breadcrumbs.tsx       # Clickable folder navigation stack
+│   │   │   ├── FileCard.tsx          # Grid view card with multi-select & actions
+│   │   │   ├── FilePreviewModal.tsx  # In-window viewer with zoom, speed & code lines
+│   │   │   ├── FileRow.tsx           # List view table row with checkboxes
+│   │   │   ├── LoadingSkeleton.tsx   # Sleek skeleton loader
+│   │   │   ├── Navbar.tsx            # App header with live vault storage stats
+│   │   │   ├── ProtectedRoute.tsx    # Route protection guard
+│   │   │   └── SearchBar.tsx         # Search scope, category filter & sort toolbar
 │   │   ├── context/
-│   │   │   └── AuthContext.tsx # Global authentication provider
+│   │   │   └── AuthContext.tsx       # Global authentication provider
 │   │   ├── pages/
-│   │   │   ├── Dashboard.tsx   # File explorer dashboard
-│   │   │   └── Login.tsx       # Glassmorphism login card
+│   │   │   ├── Dashboard.tsx         # File explorer dashboard with batch operations
+│   │   │   └── Login.tsx             # Glassmorphism login card
 │   │   ├── services/
-│   │   │   └── api.ts          # Axios API service & download handlers
+│   │   │   └── api.ts                # Axios API service, stats & download handlers
 │   │   ├── utils/
-│   │   │   └── fileUtils.tsx   # Icon mapper & format helpers
+│   │   │   └── fileUtils.tsx         # Icon mapper & format helpers
 │   │   ├── App.tsx
 │   │   └── main.tsx
 │   ├── package.json
 │   ├── tailwind.config.js
 │   └── vite.config.ts
-├── package.json                # Monorepo root scripts
+├── package.json                      # Monorepo root scripts
 └── README.md
 ```
 
@@ -100,7 +107,7 @@ university-vault/
 ## 🚀 Quick Start
 
 ### 1. Prerequisites
-- **Node.js**: v18+ (tested on Node v24)
+- **Node.js**: v18+ (tested on Node v22/v24)
 - **MongoDB**: Local MongoDB instance or MongoDB Atlas URI
 
 ### 2. Configure Environment (`backend/.env`)
@@ -122,7 +129,7 @@ ADMIN_PASSWORD=admin123
 4. Create and download a **JSON key** for the Service Account.
 5. In Google Drive, open the folder you wish to serve, click **Share**, and paste the Service Account's email (`...iam.gserviceaccount.com`) as a **Viewer**.
 6. Copy the **Folder ID** from the Google Drive URL (`https://drive.google.com/drive/folders/<FOLDER_ID>`) into `GOOGLE_DRIVE_ROOT_FOLDER_ID`.
-7. Paste the entire raw JSON string of the downloaded key into `GOOGLE_CREDENTIALS_JSON` in `backend/.env`.
+7. Paste the entire raw JSON string of the downloaded key into `GOOGLE_CREDENTIALS_JSON` in `backend/.env` or place `credentials.json` in `backend/`.
 
 ### 4. Running the Project
 
@@ -138,21 +145,16 @@ npm run dev:frontend
 - **Frontend**: [http://localhost:5173](http://localhost:5173)
 - **Backend**: [http://localhost:5000](http://localhost:5000)
 
-#### Initial Seed (Optional Preview)
-```bash
-npm run seed
-```
-This populates MongoDB with initial demo university folders (Assignments, Lecture Slides) and files (Syllabus.pdf, Starter_Code.zip) for instant testing.
-
 #### Default Admin Credentials:
 - **Username**: `admin`
 - **Password**: `admin123`
 
 ---
 
-## 🔒 Security & Proxy Details
+## 🔒 Security & Streaming Details
 
+- **HTTP 206 Partial Content**: Full support for HTTP `Range` headers, enabling video/audio scrubbing and seeking in preview players, along with resumable multi-thread downloads.
 - **Protected API Endpoints**: All `/api/drive/*` routes validate a signed JWT Bearer token in the `Authorization` header.
-- **Direct Download Stream Support**: The download endpoint `/api/drive/download/:fileId` supports query token authentication (`?token=<jwt>`), enabling seamless browser file downloads, while fully validating signatures.
-- **Google Workspace Export**: Google Docs, Sheets, and Slides are automatically exported to PDF format via `drive.files.export` before streaming.
+- **Direct Download Stream Support**: The download endpoint `/api/drive/download/:fileId` supports query token authentication (`?token=<jwt>`), enabling direct browser downloads with full signature verification.
+- **Google Workspace Export**: Google Docs, Sheets, and Slides are automatically converted to PDF format via `drive.files.export` before streaming.
 - **Network Bypassing**: Client devices only ever communicate with your backend server URL. Google Drive domains and IP ranges never touch the client network.

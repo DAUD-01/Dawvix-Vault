@@ -14,7 +14,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, onSelectFolder 
         const isLast = index === items.length - 1;
 
         return (
-          <div key={item.id} className="flex items-center space-x-1 shrink-0">
+          <div key={`${item.id}_${index}`} className="flex items-center space-x-1 shrink-0">
             {index > 0 && (
               <ChevronRight className="h-4 w-4 text-slate-500 shrink-0 mx-1" />
             )}

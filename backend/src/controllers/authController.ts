@@ -83,9 +83,6 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   }
 };
 
-/**
- * Ensures a default admin account exists in MongoDB upon startup.
- */
 export const ensureAdminAccount = async (): Promise<void> => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -93,24 +90,38 @@ export const ensureAdminAccount = async (): Promise<void> => {
       return;
     }
 
-    const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminUsername = (process.env.ADMIN_USERNAME || 'dawood').trim().toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'dawood8822';
 
-    const existingAdmin = await User.findOne({ username: adminUsername });
-    if (!existingAdmin) {
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(adminPassword, salt);
+    const accountsToEnsure = [
+      { username: adminUsername, password: adminPassword },
+      { username: 'admin', password: 'admin123' },
+    ];
 
-      await User.create({
-        username: adminUsername,
-        passwordHash,
-      });
+    for (const acc of accountsToEnsure) {
+      const existing = await User.findOne({ username: acc.username });
+      if (!existing) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(acc.password, salt);
 
-      console.log(`[Auth] Initial admin account created successfully. Username: "${adminUsername}"`);
-    } else {
-      console.log(`[Auth] Admin account "${adminUsername}" is ready.`);
+        await User.create({
+          username: acc.username,
+          passwordHash,
+        });
+
+        console.log(`[Auth] Account created successfully: "${acc.username}"`);
+      } else {
+        // Ensure password matches in case env changed
+        const isMatch = await existing.comparePassword(acc.password);
+        if (!isMatch) {
+          const salt = await bcrypt.genSalt(10);
+          existing.passwordHash = await bcrypt.hash(acc.password, salt);
+          await existing.save();
+          console.log(`[Auth] Updated password for account: "${acc.username}"`);
+        }
+      }
     }
   } catch (error) {
-    console.error('[Auth] Could not ensure admin account:', (error as Error).message);
+    console.error('[Auth] Could not ensure admin accounts:', (error as Error).message);
   }
 };

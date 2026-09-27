@@ -1,22 +1,26 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, RefreshCw, LogOut, User as UserIcon } from 'lucide-react';
+import { VaultStats } from '../types';
+import { formatBytes } from '../utils/fileUtils';
+import { Shield, RefreshCw, LogOut, User as UserIcon, HardDrive, Files } from 'lucide-react';
 
 interface NavbarProps {
   onSync: () => Promise<void>;
   isSyncing: boolean;
   lastSyncedMessage?: string | null;
+  stats?: VaultStats | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onSync,
   isSyncing,
   lastSyncedMessage,
+  stats,
 }) => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         {/* Brand */}
         <div className="flex items-center gap-3">
@@ -38,8 +42,26 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-3">
+        {/* Action Controls & Vault Stats */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Live Stats Pills */}
+          {stats && (
+            <div className="hidden md:flex items-center gap-2 mr-1">
+              <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300">
+                <Files className="h-3.5 w-3.5 text-teal-400" />
+                <span>
+                  <b>{stats.totalFiles}</b> files
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300">
+                <HardDrive className="h-3.5 w-3.5 text-teal-400" />
+                <span>
+                  <b>{formatBytes(stats.totalBytes)}</b>
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Sync Button */}
           <button
             type="button"
@@ -53,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* User profile & Logout */}
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-3">
+          <div className="flex items-center gap-2 border-l border-slate-800 pl-2.5 sm:pl-3">
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-300 bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800">
               <UserIcon className="h-3.5 w-3.5 text-teal-400" />
               <span className="font-medium text-slate-200">{user?.username || 'User'}</span>
@@ -74,7 +96,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Sync Status Banner */}
       {lastSyncedMessage && (
-        <div className="border-t border-teal-500/20 bg-teal-950/40 px-4 py-1.5 text-center text-xs text-teal-300">
+        <div className="border-t border-teal-500/20 bg-teal-950/40 px-4 py-1.5 text-center text-xs text-teal-300 animate-fadeIn">
           {lastSyncedMessage}
         </div>
       )}
