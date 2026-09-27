@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { authService } from '../services/api';
-import { Shield, Lock, User, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
+import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { authService } from "../services/api";
+import {
+  Shield,
+  Lock,
+  User,
+  ArrowRight,
+  AlertCircle,
+  KeyRound,
+} from "lucide-react";
 
 export const Login: React.FC = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -14,12 +21,12 @@ export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const from = (location.state as any)?.from?.pathname || "/dashboard";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
-      setErrorMessage('Please enter both username and password.');
+      setErrorMessage("Please enter both username and password.");
       return;
     }
 
@@ -33,7 +40,7 @@ export const Login: React.FC = () => {
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||
-        'Authentication failed. Please verify credentials or backend connection.';
+        "Authentication failed. Please verify credentials or backend connection.";
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
@@ -89,7 +96,7 @@ export const Login: React.FC = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="dawood"
+                  placeholder="username"
                   className="block w-full rounded-xl border border-slate-800 bg-slate-950/60 py-2.5 pl-10 pr-3.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
@@ -138,20 +145,7 @@ export const Login: React.FC = () => {
           </form>
 
           {/* Preset Credentials Hint */}
-          <div className="mt-6 border-t border-slate-800/80 pt-4">
-            <div className="flex items-start gap-2 rounded-xl bg-slate-950/50 p-3 text-xs text-slate-400 border border-slate-800/50">
-              <KeyRound className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-slate-300">Vault Access Credentials:</span>
-                <p className="mt-0.5 text-slate-400">
-                  Username: <code className="text-teal-300">dawood</code> | Password: <code className="text-teal-300">dawood8822</code>
-                </p>
-                <p className="mt-0.5 text-slate-500 text-[11px]">
-                  (or Admin: <code className="text-teal-400/80">admin</code> / <code className="text-teal-400/80">admin123</code>)
-                </p>
-              </div>
-            </div>
-          </div>
+          <div className="mt-6 border-t border-slate-800/80 pt-4"></div>
         </div>
       </div>
     </div>
