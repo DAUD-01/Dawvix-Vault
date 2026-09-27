@@ -5,8 +5,8 @@ import { authService } from '../services/api';
 import { Shield, Lock, User, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const [username, setUsername] = useState('dawood');
-  const [password, setPassword] = useState('dawood8822');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
