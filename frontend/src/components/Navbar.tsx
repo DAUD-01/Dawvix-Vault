@@ -1,8 +1,15 @@
-import React from 'react';
-import { useAuth } from '../context/AuthContext';
-import { VaultStats } from '../types';
-import { formatBytes } from '../utils/fileUtils';
-import { Shield, RefreshCw, LogOut, User as UserIcon, HardDrive, Files } from 'lucide-react';
+import React from "react";
+import { useAuth } from "../context/AuthContext";
+import { VaultStats } from "../types";
+import { formatBytes } from "../utils/fileUtils";
+import {
+  Shield,
+  RefreshCw,
+  LogOut,
+  User as UserIcon,
+  HardDrive,
+  Files,
+} from "lucide-react";
 
 interface NavbarProps {
   onSync: () => Promise<void>;
@@ -30,7 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold tracking-tight text-white sm:text-lg">
-                University Vault
+                Dawvix Vault
               </span>
               <span className="rounded-md border border-teal-500/30 bg-teal-500/10 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-teal-400">
                 GATEWAY
@@ -67,15 +74,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-teal-950/50 transition-all hover:from-teal-500 hover:to-teal-400 hover:shadow-teal-900/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             title="Recursively sync files and metadata from target Google Drive"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Syncing...' : 'Sync Drive'}</span>
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
+            />
+            <span>{isSyncing ? "Syncing..." : "Sync Drive"}</span>
           </button>
 
           {/* User profile & Logout */}
           <div className="flex items-center gap-2 border-l border-slate-800 pl-2.5 sm:pl-3">
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-300 bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800">
               <UserIcon className="h-3.5 w-3.5 text-teal-400" />
-              <span className="font-medium text-slate-200">{user?.username || 'User'}</span>
+              <span className="font-medium text-slate-200">
+                {user?.username || "User"}
+              </span>
             </div>
 
             <button
