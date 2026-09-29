@@ -148,8 +148,19 @@ export const Dashboard: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchFiles(currentFolderId, searchScope);
+    if (searchScope === 'folder') {
+      fetchFiles(currentFolderId, searchScope);
+    }
   }, [currentFolderId, searchScope, sortBy, sortOrder]);
+
+  useEffect(() => {
+    if (searchScope === 'vault') {
+      const timer = setTimeout(() => {
+        fetchFiles(currentFolderId, searchScope);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, searchScope, currentFolderId, sortBy, sortOrder]);
 
   // Keyboard shortcut for search focus
   useEffect(() => {
@@ -300,9 +311,9 @@ export const Dashboard: React.FC = () => {
     let result = files.filter((file) => {
       // 1. Text search match (if local search)
       if (searchScope === 'folder' && searchQuery) {
-        const matchesSearch = file.name
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase().trim());
+        const queryTerms = searchQuery.toLowerCase().trim().split(/\s+/);
+        const fileName = file.name.toLowerCase();
+        const matchesSearch = queryTerms.every((term) => fileName.includes(term));
         if (!matchesSearch) return false;
       }
 

@@ -25,8 +25,8 @@ export const getFileIcon = (mimeType: string, isFolder: boolean, sizeClass: stri
     return <Folder className={`${sizeClass} text-amber-400 fill-amber-400/20`} />;
   }
 
-  // Google Workspace Docs or PDF
-  if (mimeType.includes('pdf') || mimeType.includes('google-apps.document')) {
+  // Google Workspace Docs, PDF, or Markdown
+  if (mimeType.includes('pdf') || mimeType.includes('google-apps.document') || mimeType.includes('markdown')) {
     return <FileText className={`${sizeClass} text-rose-400`} />;
   }
 

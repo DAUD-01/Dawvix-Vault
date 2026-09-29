@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { FileItem } from '../types';
 import { driveService } from '../services/api';
 import { getFileIcon, formatBytes } from '../utils/fileUtils';
@@ -147,13 +149,17 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     mime.startsWith('audio/') ||
     /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(name);
 
+  const isMarkdown =
+    mime === 'text/markdown' ||
+    /\.(md|markdown)$/i.test(name);
+
   const isTextBased =
     mime.startsWith('text/') ||
     mime.includes('json') ||
     mime.includes('javascript') ||
     mime.includes('typescript') ||
     mime.includes('csv') ||
-    /\.(txt|md|json|ts|tsx|js|jsx|py|html|css|scss|sh|yaml|yml|xml|csv|log|env|sql)$/i.test(name);
+    /\.(txt|json|ts|tsx|js|jsx|py|html|css|scss|sh|yaml|yml|xml|csv|log|env|sql)$/i.test(name);
 
   const handleDownload = async () => {
     try {
@@ -410,6 +416,34 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                     {speed}x
                   </button>
                 ))}
+              </div>
+            </div>
+          ) : isMarkdown ? (
+            /* 4.5 Markdown Viewer */
+            <div className="w-full h-full flex flex-col bg-slate-950 overflow-hidden">
+              <div className="flex-1 overflow-auto p-6 md:p-10 bg-slate-900/50">
+                {isLoadingContent ? (
+                  <div className="flex flex-col items-center justify-center gap-3 text-slate-400 h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-teal-400" />
+                    <p className="text-xs">Streaming file content from gateway...</p>
+                  </div>
+                ) : hasError ? (
+                  <div className="flex flex-col items-center justify-center gap-3 p-6 text-center h-full">
+                    <FileQuestion className="h-10 w-10 text-rose-400" />
+                    <p className="text-sm text-slate-300">Could not display file preview</p>
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="mt-2 rounded-xl bg-teal-600 px-4 py-2 text-xs font-medium text-white hover:bg-teal-500"
+                    >
+                      Download Instead
+                    </button>
+                  </div>
+                ) : (
+                  <div className="prose prose-invert prose-teal max-w-3xl mx-auto bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-xl">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent || ''}</ReactMarkdown>
+                  </div>
+                )}
               </div>
             </div>
           ) : isTextBased ? (
