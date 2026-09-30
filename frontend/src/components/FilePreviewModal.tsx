@@ -438,9 +438,9 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               </audio>
             </div>
           ) : isMarkdown ? (
-            /* --- UPGRADED MARKDOWN VIEWER --- */
-            <div className="w-full h-full flex flex-col bg-[#0d1117] overflow-hidden">
-              <div className="flex-1 overflow-auto p-6 md:p-12">
+            /* --- WIDE LAYOUT WITH SLATE THEME --- */
+            <div className="w-full h-full flex flex-col bg-slate-950 overflow-hidden">
+              <div className="flex-1 overflow-auto p-6 md:p-12 bg-slate-900/50">
                 {isLoadingContent ? (
                   <div className="flex flex-col items-center justify-center gap-3 text-slate-400 h-full">
                     <Loader2 className="h-8 w-8 animate-spin text-teal-400" />
@@ -456,8 +456,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 ) : (
                   <div
                     className="
-                      max-w-4xl mx-auto w-full 
-                      prose prose-invert prose-slate 
+                      w-full max-w-none
+                      prose prose-invert prose-teal 
                       prose-headings:font-semibold prose-headings:text-slate-100 
                       prose-h1:text-3xl prose-h1:border-b prose-h1:border-slate-800 prose-h1:pb-2
                       prose-a:text-teal-400 prose-a:no-underline hover:prose-a:underline
@@ -475,7 +475,6 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                       remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
                       rehypePlugins={[rehypeKatex, rehypeRaw]}
                       components={{
-                        // Intercept code blocks and route them to our custom premium component
                         code({
                           node,
                           inline,
@@ -492,7 +491,6 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                               />
                             );
                           }
-                          // Fallback for simple inline `code`
                           return (
                             <code className={className} {...props}>
                               {children}
