@@ -5,7 +5,6 @@ import remarkMath from "remark-math";
 import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
-// @ts-expect-error: TypeScript doesn't natively recognize CSS imports
 import "katex/dist/katex.min.css";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";

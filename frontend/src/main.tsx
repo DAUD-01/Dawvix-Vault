@@ -2,7 +2,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-// @ts-expect-error: TypeScript doesn't natively recognize CSS imports
 import './index.css';
 
 interface Props {
