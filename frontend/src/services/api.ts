@@ -118,4 +118,24 @@ export const driveService = {
       window.open(directUrl, '_blank');
     }
   },
+
+  createFolder: async (name: string, parentId?: string): Promise<any> => {
+    const response = await api.post('/drive/folder', { name, parentId });
+    return response.data;
+  },
+
+  uploadFiles: async (files: File[], parentId?: string, onUploadProgress?: (progressEvent: any) => void): Promise<any> => {
+    const formData = new FormData();
+    if (parentId) {
+      formData.append('parentId', parentId);
+    }
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    const response = await api.post('/drive/upload', formData, {
+      onUploadProgress,
+    });
+    return response.data;
+  },
 };

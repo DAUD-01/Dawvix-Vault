@@ -56,7 +56,7 @@ export const getGoogleDriveClient = (): drive_v3.Drive => {
         '[GoogleDrive] No Google Service Account credentials found. Live Drive syncing will be disabled until configured.'
       );
       const auth = new google.auth.GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        scopes: ['https://www.googleapis.com/auth/drive'],
       });
       driveInstance = google.drive({ version: 'v3', auth });
       hasValidCreds = false;
@@ -72,7 +72,7 @@ export const getGoogleDriveClient = (): drive_v3.Drive => {
   try {
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+      scopes: ['https://www.googleapis.com/auth/drive'],
     });
 
     driveInstance = google.drive({ version: 'v3', auth });

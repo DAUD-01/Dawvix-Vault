@@ -32,6 +32,7 @@ import {
   Square,
   X,
   Sparkles,
+  UploadCloud,
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -59,6 +60,9 @@ export const Dashboard: React.FC = () => {
   // In-window file preview state
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
   // Search, scope, filter, sort & display states
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchScope, setSearchScope] = useState<SearchScope>('folder');
@@ -66,6 +70,11 @@ export const Dashboard: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [isGrid, setIsGrid] = useState<boolean>(false);
+
+  // Modal states
+  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState<boolean>(false);
+  const [newFolderName, setNewFolderName] = useState<string>('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
 
   // Toast notification state
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -233,6 +242,28 @@ export const Dashboard: React.FC = () => {
     if (breadcrumbs.length > 1) {
       const parentIndex = breadcrumbs.length - 2;
       handleSelectBreadcrumb(breadcrumbs[parentIndex].id, parentIndex);
+    }
+  };
+
+  // Create folder action
+  const handleCreateFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFolderName.trim()) return;
+    setIsCreatingFolder(true);
+    try {
+      await driveService.createFolder(
+        newFolderName.trim(),
+        currentFolderId === 'root' ? undefined : currentFolderId
+      );
+      addToast(`Folder "${newFolderName.trim()}" created successfully!`, 'success');
+      fetchFiles(currentFolderId, searchScope);
+      fetchStats();
+      setIsCreateFolderModalOpen(false);
+      setNewFolderName('');
+    } catch (err: any) {
+      addToast(`Failed to create folder: ${err.message || 'Error'}`, 'error');
+    } finally {
+      setIsCreatingFolder(false);
     }
   };
 
@@ -433,6 +464,66 @@ export const Dashboard: React.FC = () => {
         />
       )}
 
+      {/* Create Folder Modal */}
+      {isCreateFolderModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-800 p-4">
+              <h3 className="text-lg font-semibold text-white">Create New Folder</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateFolderModalOpen(false);
+                  setNewFolderName('');
+                }}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateFolder} className="p-5">
+              <div className="mb-4">
+                <label htmlFor="folderName" className="mb-2 block text-sm font-medium text-slate-300">
+                  Folder Name
+                </label>
+                <input
+                  type="text"
+                  id="folderName"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="e.g., Assignments, Project Files"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreateFolderModalOpen(false);
+                    setNewFolderName('');
+                  }}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newFolderName.trim() || isCreatingFolder}
+                  className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[100px]"
+                >
+                  {isCreatingFolder ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Create'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Main Container */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
         {/* Service Account integration helper hint */}
@@ -505,16 +596,50 @@ export const Dashboard: React.FC = () => {
             />
           </div>
 
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={isSyncing}
-            title="Reconcile with Google Drive and refresh"
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-400 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-teal-400' : ''}`} />
-            <span>{isSyncing ? 'Syncing...' : 'Refresh & Sync'}</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsCreateFolderModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-teal-600/20 px-3 py-1.5 text-xs font-medium text-teal-300 hover:bg-teal-600/40 transition-colors"
+            >
+              <FolderUp className="h-3.5 w-3.5" />
+              <span>New Folder</span>
+            </button>
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-md hover:bg-teal-500 transition-colors">
+              <UploadCloud className="h-3.5 w-3.5" />
+              <span>Upload File</span>
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (files && files.length > 0) {
+                    try {
+                      addToast(`Uploading ${files.length} file(s)...`, 'info');
+                      await driveService.uploadFiles(Array.from(files), currentFolderId === 'root' ? undefined : currentFolderId);
+                      addToast(`Successfully uploaded ${files.length} file(s)!`, 'success');
+                      fetchFiles(currentFolderId, searchScope);
+                      fetchStats();
+                    } catch (err: any) {
+                      const msg = err.response?.data?.message || err.message || 'Error';
+                      addToast(`Upload failed: ${msg}`, 'error');
+                    }
+                  }
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isSyncing}
+              title="Reconcile with Google Drive and refresh"
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-400 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-teal-400' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : 'Refresh & Sync'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Search, Scope, Filter & View Controls */}
@@ -581,7 +706,45 @@ export const Dashboard: React.FC = () => {
         )}
 
         {/* Content Explorer Section */}
-        <div className="mt-4 rounded-2xl border border-slate-800/80 bg-slate-900/40 backdrop-blur-md overflow-hidden shadow-xl">
+        <div
+          className={`relative mt-4 rounded-2xl border ${isDragging ? 'border-teal-500 bg-teal-900/20' : 'border-slate-800/80 bg-slate-900/40'} backdrop-blur-md overflow-hidden shadow-xl transition-colors`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isDragging) setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragging(false);
+          }}
+          onDrop={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragging(false);
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+              try {
+                addToast(`Uploading ${files.length} file(s)...`, 'info');
+                await driveService.uploadFiles(Array.from(files), currentFolderId === 'root' ? undefined : currentFolderId);
+                addToast(`Successfully uploaded ${files.length} file(s)!`, 'success');
+                fetchFiles(currentFolderId, searchScope);
+                fetchStats();
+              } catch (err: any) {
+                const msg = err.response?.data?.message || err.message || 'Error';
+                addToast(`Upload failed: ${msg}`, 'error');
+              }
+            }
+          }}
+        >
+          {isDragging && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3 text-teal-400">
+                <Inbox className="h-12 w-12 animate-bounce" />
+                <span className="text-lg font-semibold">Drop files here to upload</span>
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="p-6">
               <LoadingSkeleton isGrid={isGrid} />

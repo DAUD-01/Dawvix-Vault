@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { PassThrough } from 'stream';
 import { drive, isGoogleDriveConfigured, getGoogleCredentials } from '../config/googleDrive.js';
 import { FileMetadata } from '../models/FileMetadata.js';
 
@@ -630,6 +631,137 @@ export const getFileTextContent = async (req: Request, res: Response): Promise<v
       success: false,
       message: 'Failed to retrieve file text content.',
       error: (err as Error).message,
+    });
+  }
+};
+
+export const createFolder = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, parentId } = req.body;
+    if (!name) {
+      res.status(400).json({ success: false, message: 'Folder name is required.' });
+      return;
+    }
+
+    if (!isGoogleDriveConfigured()) {
+      res.status(400).json({ success: false, message: 'Google Drive credentials not configured.' });
+      return;
+    }
+
+    const fileMetadata = {
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: parentId && parentId !== 'root' ? [parentId] : [process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || 'root'],
+    };
+
+    const response = await drive.files.create({
+      requestBody: fileMetadata,
+      fields: 'id, name, parents, mimeType',
+      supportsAllDrives: true,
+    });
+
+    const file = response.data;
+    const isFolder = true;
+
+    // Upsert into MongoDB
+    await FileMetadata.findOneAndUpdate(
+      { driveId: file.id },
+      {
+        driveId: file.id,
+        name: file.name,
+        mimeType: file.mimeType || 'application/vnd.google-apps.folder',
+        size: 0,
+        parents: file.parents || [parentId || 'root'],
+        isFolder,
+        lastSyncedAt: new Date(),
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({
+      success: true,
+      folder: file,
+      message: 'Folder created successfully.',
+    });
+  } catch (error) {
+    console.error('[DriveController] createFolder error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create folder.',
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const uploadFiles = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parentId = req.body.parentId;
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      res.status(400).json({ success: false, message: 'No files provided for upload.' });
+      return;
+    }
+
+    if (!isGoogleDriveConfigured()) {
+      res.status(400).json({ success: false, message: 'Google Drive credentials not configured.' });
+      return;
+    }
+
+    const uploadedFiles = [];
+
+    for (const file of files) {
+      const fileMetadata = {
+        name: file.originalname,
+        parents: parentId && parentId !== 'root' ? [parentId] : [process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || 'root'],
+      };
+
+      const bufferStream = new PassThrough();
+      bufferStream.end(file.buffer);
+
+      const media = {
+        mimeType: file.mimetype,
+        body: bufferStream,
+      };
+
+      const response = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: 'id, name, parents, mimeType, size',
+        supportsAllDrives: true,
+      });
+
+      const uploadedFile = response.data;
+
+      // Upsert into MongoDB
+      await FileMetadata.findOneAndUpdate(
+        { driveId: uploadedFile.id },
+        {
+          driveId: uploadedFile.id,
+          name: uploadedFile.name,
+          mimeType: uploadedFile.mimeType || file.mimetype,
+          size: uploadedFile.size ? parseInt(uploadedFile.size, 10) : file.size,
+          parents: uploadedFile.parents || [parentId || 'root'],
+          isFolder: false,
+          lastSyncedAt: new Date(),
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      uploadedFiles.push(uploadedFile);
+    }
+
+    res.json({
+      success: true,
+      files: uploadedFiles,
+      message: 'Files uploaded successfully.',
+    });
+  } catch (error) {
+    console.error('[DriveController] uploadFiles error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload files.',
+      error: (error as Error).message,
     });
   }
 };
