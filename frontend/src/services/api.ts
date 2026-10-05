@@ -124,7 +124,7 @@ export const driveService = {
     return response.data;
   },
 
-  uploadFiles: async (files: File[], parentId?: string, onUploadProgress?: (progressEvent: any) => void): Promise<any> => {
+  uploadFiles: async (files: File[], parentId?: string): Promise<any> => {
     const formData = new FormData();
     if (parentId) {
       formData.append('parentId', parentId);
@@ -133,9 +133,29 @@ export const driveService = {
       formData.append('files', file);
     });
 
-    const response = await api.post('/drive/upload', formData, {
-      onUploadProgress,
+    const token = localStorage.getItem('token');
+    
+    // We use native fetch here to guarantee that the browser correctly sets
+    // the Content-Type: multipart/form-data with the proper boundary, 
+    // avoiding any Axios default header interference.
+    const response = await fetch(`${API_BASE_URL}/drive/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
     });
-    return response.data;
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      throw { response: { data: errorData } };
+    }
+
+    return await response.json();
   },
 };

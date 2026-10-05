@@ -622,7 +622,7 @@ export const Dashboard: React.FC = () => {
                       fetchFiles(currentFolderId, searchScope);
                       fetchStats();
                     } catch (err: any) {
-                      const msg = err.response?.data?.message || err.message || 'Error';
+                      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Error';
                       addToast(`Upload failed: ${msg}`, 'error');
                     }
                   }
@@ -731,7 +731,7 @@ export const Dashboard: React.FC = () => {
                 fetchFiles(currentFolderId, searchScope);
                 fetchStats();
               } catch (err: any) {
-                const msg = err.response?.data?.message || err.message || 'Error';
+                const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Error';
                 addToast(`Upload failed: ${msg}`, 'error');
               }
             }

@@ -397,6 +397,36 @@ const handleStream = async (
 
     const dispositionType = isInline ? 'inline' : 'attachment';
 
+    // Handle locally stored fallback files
+    if (fileId.startsWith('local_')) {
+      const fs = await import('fs');
+      const path = await import('path');
+      const localFilePath = path.join(process.cwd(), 'uploads', fileId);
+      
+      if (!fs.existsSync(localFilePath)) {
+        res.status(404).json({ success: false, message: 'Local file not found.' });
+        return;
+      }
+      
+      const fileMeta = await FileMetadata.findOne({ driveId: fileId });
+      const filename = fileMeta?.name || 'download';
+      const mime = fileMeta?.mimeType || 'application/octet-stream';
+      const safeAsciiName = filename.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
+      
+      res.setHeader('Content-Type', mime);
+      res.setHeader(
+        'Content-Disposition',
+        `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+      );
+      
+      const stat = fs.statSync(localFilePath);
+      res.setHeader('Content-Length', stat.size);
+      
+      const readStream = fs.createReadStream(localFilePath);
+      readStream.pipe(res);
+      return;
+    }
+
     // 1. Check if configured with Google Drive API
     if (!isGoogleDriveConfigured()) {
       res.status(400).json({
@@ -577,6 +607,28 @@ export const getFileTextContent = async (req: Request, res: Response): Promise<v
       return;
     }
 
+    if (fileId.startsWith('local_')) {
+      const fs = await import('fs');
+      const path = await import('path');
+      const localFilePath = path.join(process.cwd(), 'uploads', fileId);
+      
+      if (!fs.existsSync(localFilePath)) {
+        res.status(404).json({ success: false, message: 'Local file not found.' });
+        return;
+      }
+      
+      const fileMeta = await FileMetadata.findOne({ driveId: fileId });
+      const content = fs.readFileSync(localFilePath, 'utf8');
+      
+      res.json({
+        success: true,
+        name: fileMeta?.name || 'local_file',
+        mimeType: fileMeta?.mimeType || 'text/plain',
+        content,
+      });
+      return;
+    }
+
     if (!isGoogleDriveConfigured()) {
       res.status(400).json({
         success: false,
@@ -724,14 +776,41 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         body: bufferStream,
       };
 
-      const response = await drive.files.create({
-        requestBody: fileMetadata,
-        media: media,
-        fields: 'id, name, parents, mimeType, size',
-        supportsAllDrives: true,
-      });
-
-      const uploadedFile = response.data;
+      let uploadedFile: any;
+      try {
+        const response = await drive.files.create({
+          requestBody: fileMetadata,
+          media: media,
+          fields: 'id, name, parents, mimeType, size',
+          supportsAllDrives: true,
+        });
+        uploadedFile = response.data;
+      } catch (driveError: any) {
+        if (driveError?.message?.includes('quota') || driveError?.message?.includes('storage')) {
+          console.warn('[DriveController] Quota limit hit! Falling back to local vault storage...');
+          const fs = await import('fs');
+          const path = await import('path');
+          
+          const uploadsDir = path.join(process.cwd(), 'uploads');
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          
+          const localId = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          const localFilePath = path.join(uploadsDir, localId);
+          fs.writeFileSync(localFilePath, file.buffer);
+          
+          uploadedFile = {
+            id: localId,
+            name: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size,
+            parents: fileMetadata.parents,
+          };
+        } else {
+          throw driveError;
+        }
+      }
 
       // Upsert into MongoDB
       await FileMetadata.findOneAndUpdate(
