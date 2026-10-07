@@ -1,33 +1,43 @@
-import { Request, Response } from 'express';
-import { PassThrough } from 'stream';
-import { drive, isGoogleDriveConfigured, getGoogleCredentials } from '../config/googleDrive.js';
-import { FileMetadata } from '../models/FileMetadata.js';
+import { Request, Response } from "express";
+import { PassThrough } from "stream";
+import {
+  drive,
+  isGoogleDriveConfigured,
+  getGoogleCredentials,
+} from "../config/googleDrive.js";
+import { FileMetadata } from "../models/FileMetadata.js";
+
+/**
+ * Helper to retrieve effective root folder ID from environment or fallback to 'root'
+ */
+const getRootFolderId = (): string => {
+  return process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() || "root";
+};
 
 /**
  * Returns total vault statistics including file count, folder count, total size, and sync status.
  */
-export const getVaultStats = async (_req: Request, res: Response): Promise<void> => {
+export const getVaultStats = async (
+  _req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const [stats] = await FileMetadata.aggregate([
       {
         $group: {
           _id: null,
           totalFiles: {
-            $sum: {
-              $cond: [{ $eq: ['$isFolder', false] }, 1, 0],
-            },
+            $sum: { $cond: [{ $eq: ["$isFolder", false] }, 1, 0] },
           },
           totalFolders: {
-            $sum: {
-              $cond: [{ $eq: ['$isFolder', true] }, 1, 0],
-            },
+            $sum: { $cond: [{ $eq: ["$isFolder", true] }, 1, 0] },
           },
           totalBytes: {
             $sum: {
-              $cond: [{ $eq: ['$isFolder', false] }, '$size', 0],
+              $cond: [{ $eq: ["$isFolder", false] }, "$size", 0],
             },
           },
-          lastSyncedAt: { $max: '$lastSyncedAt' },
+          lastSyncedAt: { $max: "$lastSyncedAt" },
         },
       },
     ]);
@@ -46,17 +56,17 @@ export const getVaultStats = async (_req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    console.error('[DriveController] getVaultStats error:', error);
+    console.error("[DriveController] getVaultStats error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve vault statistics.',
+      message: "Failed to retrieve vault statistics.",
       error: (error as Error).message,
     });
   }
 };
 
 export const performDriveSync = async (
-  folderIdParam?: string
+  folderIdParam?: string,
 ): Promise<{
   syncedCount: number;
   deletedCount: number;
@@ -64,21 +74,21 @@ export const performDriveSync = async (
 }> => {
   if (!isGoogleDriveConfigured()) {
     throw new Error(
-      'Google Drive credentials not configured. Please ensure credentials.json or GOOGLE_CREDENTIALS_JSON is configured.'
+      "Google Drive credentials not configured. Please ensure credentials.json or GOOGLE_CREDENTIALS_JSON is configured.",
     );
   }
 
-  const targetFolderId =
-    folderIdParam?.trim() ||
-    process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() ||
-    'root';
+  const rootFolderId = getRootFolderId();
+  const targetFolderId = folderIdParam?.trim() || rootFolderId;
 
-  console.log(`[DriveSync] Initiating reconciliation sync with Google Drive. Target: ${targetFolderId}`);
+  console.log(
+    `[DriveSync] Initiating reconciliation sync with Google Drive. Target: ${targetFolderId}`,
+  );
 
   let syncedCount = 0;
   let deletedCount = 0;
 
-  if (targetFolderId === 'root') {
+  if (targetFolderId === "root") {
     let pageToken: string | undefined = undefined;
     const allItems: any[] = [];
     const itemMap = new Map<string, any>();
@@ -86,8 +96,9 @@ export const performDriveSync = async (
 
     do {
       const response: any = await drive.files.list({
-        q: 'trashed = false',
-        fields: 'nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)',
+        q: "trashed = false",
+        fields:
+          "nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)",
         pageSize: 1000,
         pageToken,
         supportsAllDrives: true,
@@ -105,15 +116,16 @@ export const performDriveSync = async (
       pageToken = response.data.nextPageToken || undefined;
     } while (pageToken);
 
-    // Upsert discovered items into MongoDB
     for (const item of allItems) {
-      const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
+      const isFolder = item.mimeType === "application/vnd.google-apps.folder";
       let itemParents = item.parents || [];
 
-      const hasKnownParent = itemParents.some((pId: string) => itemMap.has(pId));
+      const hasKnownParent = itemParents.some((pId: string) =>
+        itemMap.has(pId),
+      );
       if (!hasKnownParent || itemParents.length === 0) {
-        if (!itemParents.includes('root')) {
-          itemParents = ['root', ...itemParents];
+        if (!itemParents.includes("root")) {
+          itemParents = ["root", ...itemParents];
         }
       }
 
@@ -122,34 +134,31 @@ export const performDriveSync = async (
         {
           driveId: item.id,
           name: item.name,
-          mimeType: item.mimeType || 'application/octet-stream',
+          mimeType: item.mimeType || "application/octet-stream",
           size: item.size ? parseInt(item.size, 10) : 0,
           parents: itemParents,
           isFolder,
           lastSyncedAt: new Date(),
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true },
       );
 
       syncedCount++;
     }
 
-    // Prune stale items: remove any records from MongoDB that no longer exist in Google Drive
     const deleteResult = await FileMetadata.deleteMany({
       driveId: { $nin: Array.from(discoveredIds) },
     });
     deletedCount = deleteResult.deletedCount || 0;
   } else {
-    // Specific folder crawl
     const folderQueue: string[] = [targetFolderId];
     const visitedFolders = new Set<string>();
     const discoveredIds = new Set<string>();
 
-    // Try fetching target folder's own metadata
     try {
       const targetMeta: any = await drive.files.get({
         fileId: targetFolderId,
-        fields: 'id, name, mimeType, parents',
+        fields: "id, name, mimeType, parents",
         supportsAllDrives: true,
       });
       if (targetMeta?.data?.id) {
@@ -158,18 +167,19 @@ export const performDriveSync = async (
           { driveId: targetMeta.data.id },
           {
             driveId: targetMeta.data.id,
-            name: targetMeta.data.name || 'Root Folder',
-            mimeType: targetMeta.data.mimeType || 'application/vnd.google-apps.folder',
+            name: targetMeta.data.name || "Root Folder",
+            mimeType:
+              targetMeta.data.mimeType || "application/vnd.google-apps.folder",
             size: 0,
-            parents: targetMeta.data.parents || ['root'],
+            parents: targetMeta.data.parents || ["root"],
             isFolder: true,
             lastSyncedAt: new Date(),
           },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+          { upsert: true, new: true, setDefaultsOnInsert: true },
         );
       }
     } catch {
-      // Ignore if folder alias cannot be fetched directly
+      // Ignore if root metadata query fails
     }
 
     while (folderQueue.length > 0) {
@@ -183,7 +193,8 @@ export const performDriveSync = async (
         const query = `'${currentFolderId}' in parents and trashed = false`;
         const response: any = await drive.files.list({
           q: query,
-          fields: 'nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)',
+          fields:
+            "nextPageToken, files(id, name, mimeType, size, parents, createdTime, modifiedTime)",
           pageSize: 1000,
           pageToken,
           supportsAllDrives: true,
@@ -196,20 +207,24 @@ export const performDriveSync = async (
           if (!item.id || !item.name) continue;
 
           discoveredIds.add(item.id);
-          const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
+          const isFolder =
+            item.mimeType === "application/vnd.google-apps.folder";
 
           await FileMetadata.findOneAndUpdate(
             { driveId: item.id },
             {
               driveId: item.id,
               name: item.name,
-              mimeType: item.mimeType || 'application/octet-stream',
+              mimeType: item.mimeType || "application/octet-stream",
               size: item.size ? parseInt(item.size, 10) : 0,
-              parents: item.parents && item.parents.length > 0 ? item.parents : [currentFolderId],
+              parents:
+                item.parents && item.parents.length > 0
+                  ? item.parents
+                  : [currentFolderId],
               isFolder,
               lastSyncedAt: new Date(),
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, new: true, setDefaultsOnInsert: true },
           );
 
           syncedCount++;
@@ -223,8 +238,6 @@ export const performDriveSync = async (
       } while (pageToken);
     }
 
-    // Prune stale items within visited folders:
-    // Any record whose parent was searched but whose driveId was not returned by Drive
     const deleteResult = await FileMetadata.deleteMany({
       parents: { $in: Array.from(visitedFolders) },
       driveId: { $nin: Array.from(discoveredIds) },
@@ -233,7 +246,7 @@ export const performDriveSync = async (
   }
 
   console.log(
-    `[DriveSync] Sync complete. Processed ${syncedCount} items, pruned ${deletedCount} stale items.`
+    `[DriveSync] Sync complete. Processed ${syncedCount} items, pruned ${deletedCount} stale items.`,
   );
 
   return {
@@ -243,32 +256,29 @@ export const performDriveSync = async (
   };
 };
 
-/**
- * Returns cached file metadata from MongoDB for the requested folder, or searches across vault.
- * Supports query parameters:
- * - folderId: ID of folder to browse (default: root)
- * - all: 'true' to search across entire vault ignoring parent
- * - search: text query filter
- * - sortBy: 'name' | 'size' | 'lastSyncedAt' | 'mimeType'
- * - order: 'asc' | 'desc'
- * - refresh: 'true' to trigger a live reconciliation sync before returning files
- */
 export const getFiles = async (req: Request, res: Response): Promise<void> => {
   try {
-    const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() || 'root';
+    const rootFolderId = getRootFolderId();
     const folderId = (req.query.folderId as string)?.trim() || rootFolderId;
-    const isGlobalSearch = req.query.all === 'true';
+    const isGlobalSearch = req.query.all === "true";
     const searchQuery = (req.query.search as string)?.trim();
-    const sortBy = (req.query.sortBy as string) || 'name';
-    const order = (req.query.order as string)?.toLowerCase() === 'desc' ? -1 : 1;
-    const shouldRefresh = req.query.refresh === 'true';
+    const sortBy = (req.query.sortBy as string) || "name";
+    const order =
+      (req.query.order as string)?.toLowerCase() === "desc" ? -1 : 1;
+    const shouldRefresh = req.query.refresh === "true";
 
-    // If refresh requested and Google Drive is configured, reconcile before serving
     if (shouldRefresh && isGoogleDriveConfigured()) {
       try {
-        await performDriveSync(folderId !== 'root' && folderId !== rootFolderId ? folderId : undefined);
+        await performDriveSync(
+          folderId !== "root" && folderId !== rootFolderId
+            ? folderId
+            : undefined,
+        );
       } catch (syncErr) {
-        console.warn('[DriveController] Auto-sync on refresh failed:', (syncErr as Error).message);
+        console.warn(
+          "[DriveController] Auto-sync on refresh failed:",
+          (syncErr as Error).message,
+        );
       }
     }
 
@@ -279,16 +289,15 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (searchQuery) {
-      filter.name = { $regex: searchQuery, $options: 'i' };
+      filter.name = { $regex: searchQuery, $options: "i" };
     }
 
-    // Build sort object: Folders always appear first in standard folder view
     const sortObj: any = { isFolder: -1 };
-    if (sortBy === 'size') {
+    if (sortBy === "size") {
       sortObj.size = order;
-    } else if (sortBy === 'lastSyncedAt') {
+    } else if (sortBy === "lastSyncedAt") {
       sortObj.lastSyncedAt = order;
-    } else if (sortBy === 'mimeType') {
+    } else if (sortBy === "mimeType") {
       sortObj.mimeType = order;
     } else {
       sortObj.name = order;
@@ -296,9 +305,8 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
 
     const files = await FileMetadata.find(filter).sort(sortObj).lean();
 
-    // Retrieve folder metadata to help frontend display current folder name
     let currentFolder = null;
-    if (folderId !== rootFolderId && folderId !== 'root') {
+    if (folderId !== rootFolderId && folderId !== "root") {
       currentFolder = await FileMetadata.findOne({ driveId: folderId }).lean();
     }
 
@@ -330,34 +338,30 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
       })),
     });
   } catch (error) {
-    console.error('[DriveController] getFiles error:', error);
+    console.error("[DriveController] getFiles error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve files from database.',
+      message: "Failed to retrieve files from database.",
       error: (error as Error).message,
     });
   }
 };
 
-/**
- * Synchronizes files and folders from Google Drive into MongoDB.
- * Deletes any items from MongoDB that were deleted or unshared in Google Drive.
- */
 export const syncDrive = async (req: Request, res: Response): Promise<void> => {
   try {
     const targetFolderId = req.body?.folderId as string | undefined;
     const result = await performDriveSync(targetFolderId);
     const creds = getGoogleCredentials();
 
-    let msg = '';
+    let msg = "";
     if (result.syncedCount > 0 || result.deletedCount > 0) {
       msg = `Sync complete: ${result.syncedCount} items updated`;
       if (result.deletedCount > 0) {
         msg += `, ${result.deletedCount} removed/stale items pruned`;
       }
-      msg += '.';
+      msg += ".";
     } else {
-      msg = `Sync completed. 0 items found. Share your Google Drive folder with "${creds?.client_email}" as Viewer.`;
+      msg = `Sync completed. 0 items found. Share your Google Drive folder with "${creds?.client_email}" as Editor.`;
     }
 
     res.json({
@@ -369,79 +373,79 @@ export const syncDrive = async (req: Request, res: Response): Promise<void> => {
       rootFolderId: result.rootFolderId,
     });
   } catch (error) {
-    console.error('[DriveController] syncDrive error:', error);
+    console.error("[DriveController] syncDrive error:", error);
     res.status(500).json({
       success: false,
-      message: (error as Error).message || 'Failed to sync with Google Drive.',
+      message: (error as Error).message || "Failed to sync with Google Drive.",
       error: (error as Error).message,
     });
   }
 };
 
-/**
- * Shared stream handler for both download (attachment) and view/preview (inline).
- * Supports RFC 7233 byte-range requests for instant media seeking and resumable transfers.
- */
 const handleStream = async (
   req: Request,
   res: Response,
-  isInline: boolean
+  isInline: boolean,
 ): Promise<void> => {
   try {
     const { fileId } = req.params;
 
     if (!fileId) {
-      res.status(400).json({ success: false, message: 'Missing fileId parameter.' });
+      res
+        .status(400)
+        .json({ success: false, message: "Missing fileId parameter." });
       return;
     }
 
-    const dispositionType = isInline ? 'inline' : 'attachment';
+    const dispositionType = isInline ? "inline" : "attachment";
 
-    // Handle locally stored fallback files
-    if (fileId.startsWith('local_')) {
-      const fs = await import('fs');
-      const path = await import('path');
-      const localFilePath = path.join(process.cwd(), 'uploads', fileId);
-      
+    if (fileId.startsWith("local_")) {
+      const fs = await import("fs");
+      const path = await import("path");
+      const localFilePath = path.join(process.cwd(), "uploads", fileId);
+
       if (!fs.existsSync(localFilePath)) {
-        res.status(404).json({ success: false, message: 'Local file not found.' });
+        res
+          .status(404)
+          .json({ success: false, message: "Local file not found." });
         return;
       }
-      
+
       const fileMeta = await FileMetadata.findOne({ driveId: fileId });
-      const filename = fileMeta?.name || 'download';
-      const mime = fileMeta?.mimeType || 'application/octet-stream';
-      const safeAsciiName = filename.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
-      
-      res.setHeader('Content-Type', mime);
+      const filename = fileMeta?.name || "download";
+      const mime = fileMeta?.mimeType || "application/octet-stream";
+      const safeAsciiName = filename
+        .replace(/[^\x20-\x7E]/g, "_")
+        .replace(/"/g, '\\"');
+
+      res.setHeader("Content-Type", mime);
       res.setHeader(
-        'Content-Disposition',
-        `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+        "Content-Disposition",
+        `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       );
-      
+
       const stat = fs.statSync(localFilePath);
-      res.setHeader('Content-Length', stat.size);
-      
+      res.setHeader("Content-Length", stat.size);
+
       const readStream = fs.createReadStream(localFilePath);
       readStream.pipe(res);
       return;
     }
 
-    // 1. Check if configured with Google Drive API
     if (!isGoogleDriveConfigured()) {
       res.status(400).json({
         success: false,
-        message: 'Google Drive credentials not configured. Please ensure credentials.json is present.',
+        message:
+          "Google Drive credentials not configured. Please ensure credentials.json is present.",
       });
       return;
     }
 
-    // 2. Fetch metadata (name, mimeType, size) via drive.files.get
     let file: any = null;
     try {
       const metaResponse = await drive.files.get({
         fileId,
-        fields: 'id, name, mimeType, size',
+        fields: "id, name, mimeType, size",
         supportsAllDrives: true,
       });
       file = metaResponse.data;
@@ -454,37 +458,41 @@ const handleStream = async (
     }
 
     if (!file || !file.name) {
-      res.status(404).json({ success: false, message: 'File not found on Google Drive.' });
+      res
+        .status(404)
+        .json({ success: false, message: "File not found on Google Drive." });
       return;
     }
 
-    const mimeType = file.mimeType || 'application/octet-stream';
+    const mimeType = file.mimeType || "application/octet-stream";
     let downloadFileName = file.name;
 
-    // Reject folder download/stream
-    if (mimeType === 'application/vnd.google-apps.folder') {
+    if (mimeType === "application/vnd.google-apps.folder") {
       res.status(400).json({
         success: false,
-        message: 'Cannot view or download a folder directly. Please navigate inside the folder.',
+        message:
+          "Cannot view or download a folder directly. Please navigate inside the folder.",
       });
       return;
     }
 
-    // Safe ASCII fallback name for legacy header parsers
-    const safeAsciiName = downloadFileName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
+    const safeAsciiName = downloadFileName
+      .replace(/[^\x20-\x7E]/g, "_")
+      .replace(/"/g, '\\"');
 
-    // 3. Google Workspace Docs (Docs, Sheets, Slides) -> Export as PDF
-    if (mimeType.startsWith('application/vnd.google-apps.')) {
-      const exportMimeType = 'application/pdf';
-      if (!downloadFileName.toLowerCase().endsWith('.pdf')) {
-        downloadFileName += '.pdf';
+    if (mimeType.startsWith("application/vnd.google-apps.")) {
+      const exportMimeType = "application/pdf";
+      if (!downloadFileName.toLowerCase().endsWith(".pdf")) {
+        downloadFileName += ".pdf";
       }
-      const safePdfName = downloadFileName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
+      const safePdfName = downloadFileName
+        .replace(/[^\x20-\x7E]/g, "_")
+        .replace(/"/g, '\\"');
 
-      res.setHeader('Content-Type', exportMimeType);
+      res.setHeader("Content-Type", exportMimeType);
       res.setHeader(
-        'Content-Disposition',
-        `${dispositionType}; filename="${safePdfName}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`
+        "Content-Disposition",
+        `${dispositionType}; filename="${safePdfName}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`,
       );
 
       const streamResponse = await drive.files.export(
@@ -492,13 +500,21 @@ const handleStream = async (
           fileId,
           mimeType: exportMimeType,
         },
-        { responseType: 'stream' }
+        { responseType: "stream" },
       );
 
-      streamResponse.data.on('error', (err: any) => {
-        console.error('[DriveController] Export stream error:', err?.message || err);
+      streamResponse.data.on("error", (err: any) => {
+        console.error(
+          "[DriveController] Export stream error:",
+          err?.message || err,
+        );
         if (!res.headersSent) {
-          res.status(500).json({ success: false, message: 'Streaming export error occurred.' });
+          res
+            .status(500)
+            .json({
+              success: false,
+              message: "Streaming export error occurred.",
+            });
         }
       });
 
@@ -506,57 +522,69 @@ const handleStream = async (
       return;
     }
 
-    // 4. Binary/regular file streaming with HTTP Range Request support
-    res.setHeader('Content-Type', mimeType);
+    res.setHeader("Content-Type", mimeType);
     res.setHeader(
-      'Content-Disposition',
-      `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`
+      "Content-Disposition",
+      `${dispositionType}; filename="${safeAsciiName}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`,
     );
-    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader("Accept-Ranges", "bytes");
 
     const requestHeaders: Record<string, string> = {};
     const rangeHeader = req.headers.range;
 
     if (rangeHeader) {
-      requestHeaders['Range'] = rangeHeader;
+      requestHeaders["Range"] = rangeHeader;
     }
 
     try {
       const streamResponse = await drive.files.get(
         {
           fileId,
-          alt: 'media',
+          alt: "media",
           supportsAllDrives: true,
         },
         {
           headers: requestHeaders,
-          responseType: 'stream',
-        }
+          responseType: "stream",
+        },
       );
 
-      // Forward status code (206 Partial Content or 200 OK)
       if (streamResponse.status === 206) {
         res.status(206);
-        if (streamResponse.headers['content-range']) {
-          res.setHeader('Content-Range', streamResponse.headers['content-range']);
+        if (streamResponse.headers["content-range"]) {
+          res.setHeader(
+            "Content-Range",
+            streamResponse.headers["content-range"],
+          );
         }
       }
 
-      if (streamResponse.headers['content-length']) {
-        res.setHeader('Content-Length', streamResponse.headers['content-length']);
+      if (streamResponse.headers["content-length"]) {
+        res.setHeader(
+          "Content-Length",
+          streamResponse.headers["content-length"],
+        );
       } else if (file.size && !rangeHeader) {
-        res.setHeader('Content-Length', file.size);
+        res.setHeader("Content-Length", file.size);
       }
 
-      streamResponse.data.on('error', (err: any) => {
-        if (err?.code !== 'ECONNRESET' && err?.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
-          console.error('[DriveController] Stream transfer error:', err?.message || err);
+      streamResponse.data.on("error", (err: any) => {
+        if (
+          err?.code !== "ECONNRESET" &&
+          err?.code !== "ERR_STREAM_PREMATURE_CLOSE"
+        ) {
+          console.error(
+            "[DriveController] Stream transfer error:",
+            err?.message || err,
+          );
         }
       });
 
-      // Handle client disconnect gracefully
-      req.on('close', () => {
-        if (streamResponse.data && typeof streamResponse.data.destroy === 'function') {
+      req.on("close", () => {
+        if (
+          streamResponse.data &&
+          typeof streamResponse.data.destroy === "function"
+        ) {
           streamResponse.data.destroy();
         }
       });
@@ -564,66 +592,73 @@ const handleStream = async (
       streamResponse.data.pipe(res);
     } catch (streamErr: any) {
       if (streamErr?.response?.status === 416) {
-        res.status(416).setHeader('Content-Range', `bytes */${file.size || 0}`).end();
+        res
+          .status(416)
+          .setHeader("Content-Range", `bytes */${file.size || 0}`)
+          .end();
         return;
       }
       throw streamErr;
     }
   } catch (error: any) {
-    console.error('[DriveController] handleStream error:', error?.message || error);
+    console.error(
+      "[DriveController] handleStream error:",
+      error?.message || error,
+    );
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
-        message: 'Failed to stream file from Google Drive.',
-        error: error?.message || 'Stream error',
+        message: "Failed to stream file from Google Drive.",
+        error: error?.message || "Stream error",
       });
     }
   }
 };
 
-/**
- * Downloads file as an attachment
- */
-export const downloadFile = async (req: Request, res: Response): Promise<void> => {
-  const isInline = req.query.inline === 'true';
+export const downloadFile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const isInline = req.query.inline === "true";
   await handleStream(req, res, isInline);
 };
 
-/**
- * Streams file inline for in-browser / in-modal viewing
- */
 export const viewFile = async (req: Request, res: Response): Promise<void> => {
   await handleStream(req, res, true);
 };
 
-/**
- * Returns text content of text/code files for rich in-window code viewer
- */
-export const getFileTextContent = async (req: Request, res: Response): Promise<void> => {
+export const getFileTextContent = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { fileId } = req.params;
     if (!fileId) {
-      res.status(400).json({ success: false, message: 'Missing fileId parameter.' });
+      res
+        .status(400)
+        .json({ success: false, message: "Missing fileId parameter." });
       return;
     }
 
-    if (fileId.startsWith('local_')) {
-      const fs = await import('fs');
-      const path = await import('path');
-      const localFilePath = path.join(process.cwd(), 'uploads', fileId);
-      
+    if (fileId.startsWith("local_")) {
+      const fs = await import("fs");
+      const path = await import("path");
+      const localFilePath = path.join(process.cwd(), "uploads", fileId);
+
       if (!fs.existsSync(localFilePath)) {
-        res.status(404).json({ success: false, message: 'Local file not found.' });
+        res
+          .status(404)
+          .json({ success: false, message: "Local file not found." });
         return;
       }
-      
+
       const fileMeta = await FileMetadata.findOne({ driveId: fileId });
-      const content = fs.readFileSync(localFilePath, 'utf8');
-      
+      const content = fs.readFileSync(localFilePath, "utf8");
+
       res.json({
         success: true,
-        name: fileMeta?.name || 'local_file',
-        mimeType: fileMeta?.mimeType || 'text/plain',
+        name: fileMeta?.name || "local_file",
+        mimeType: fileMeta?.mimeType || "text/plain",
         content,
       });
       return;
@@ -632,141 +667,174 @@ export const getFileTextContent = async (req: Request, res: Response): Promise<v
     if (!isGoogleDriveConfigured()) {
       res.status(400).json({
         success: false,
-        message: 'Google Drive credentials not configured.',
+        message: "Google Drive credentials not configured.",
       });
       return;
     }
 
     const meta = await drive.files.get({
       fileId,
-      fields: 'id, name, mimeType, size',
+      fields: "id, name, mimeType, size",
       supportsAllDrives: true,
     });
 
     const file = meta.data;
-    const mime = file.mimeType || '';
+    const mime = file.mimeType || "";
 
-    // If Google Doc, export as plain text
-    if (mime === 'application/vnd.google-apps.document') {
+    if (mime === "application/vnd.google-apps.document") {
       const textRes = await drive.files.export({
         fileId,
-        mimeType: 'text/plain',
+        mimeType: "text/plain",
       });
       res.json({
         success: true,
         name: file.name,
-        mimeType: 'text/plain',
+        mimeType: "text/plain",
         content: textRes.data,
       });
       return;
     }
 
-    // Standard media fetch as text
     const textRes = await drive.files.get(
       {
         fileId,
-        alt: 'media',
+        alt: "media",
         supportsAllDrives: true,
       },
-      { responseType: 'text' }
+      { responseType: "text" },
     );
 
     res.json({
       success: true,
       name: file.name,
       mimeType: file.mimeType,
-      content: typeof textRes.data === 'string' ? textRes.data : JSON.stringify(textRes.data, null, 2),
+      content:
+        typeof textRes.data === "string"
+          ? textRes.data
+          : JSON.stringify(textRes.data, null, 2),
     });
   } catch (err) {
-    console.error('[DriveController] getFileTextContent error:', err);
+    console.error("[DriveController] getFileTextContent error:", err);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve file text content.',
+      message: "Failed to retrieve file text content.",
       error: (err as Error).message,
     });
   }
 };
 
-export const createFolder = async (req: Request, res: Response): Promise<void> => {
+export const createFolder = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { name, parentId } = req.body;
     if (!name) {
-      res.status(400).json({ success: false, message: 'Folder name is required.' });
+      res
+        .status(400)
+        .json({ success: false, message: "Folder name is required." });
       return;
     }
 
     if (!isGoogleDriveConfigured()) {
-      res.status(400).json({ success: false, message: 'Google Drive credentials not configured.' });
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "Google Drive credentials not configured.",
+        });
       return;
     }
 
-    const fileMetadata = {
+    const targetParent =
+      parentId && parentId !== "root" ? parentId : getRootFolderId();
+
+    const fileMetadata: any = {
       name,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: parentId && parentId !== 'root' ? [parentId] : [process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || 'root'],
+      mimeType: "application/vnd.google-apps.folder",
     };
+
+    if (targetParent && targetParent !== "root") {
+      fileMetadata.parents = [targetParent];
+    }
 
     const response = await drive.files.create({
       requestBody: fileMetadata,
-      fields: 'id, name, parents, mimeType',
+      fields: "id, name, parents, mimeType",
       supportsAllDrives: true,
     });
 
     const file = response.data;
     const isFolder = true;
 
-    // Upsert into MongoDB
     await FileMetadata.findOneAndUpdate(
       { driveId: file.id },
       {
         driveId: file.id,
         name: file.name,
-        mimeType: file.mimeType || 'application/vnd.google-apps.folder',
+        mimeType: file.mimeType || "application/vnd.google-apps.folder",
         size: 0,
-        parents: file.parents || [parentId || 'root'],
+        parents: file.parents || [targetParent],
         isFolder,
         lastSyncedAt: new Date(),
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
     res.json({
       success: true,
       folder: file,
-      message: 'Folder created successfully.',
+      message: "Folder created successfully.",
     });
   } catch (error) {
-    console.error('[DriveController] createFolder error:', error);
+    console.error("[DriveController] createFolder error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create folder.',
+      message: "Failed to create folder.",
       error: (error as Error).message,
     });
   }
 };
 
-export const uploadFiles = async (req: Request, res: Response): Promise<void> => {
+export const uploadFiles = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
-    const parentId = req.body.parentId;
+    const rawParentId = req.body.parentId;
+    const rootFolderId = getRootFolderId();
+    const targetParentId =
+      rawParentId && rawParentId !== "root" ? rawParentId : rootFolderId;
+
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
-      res.status(400).json({ success: false, message: 'No files provided for upload.' });
+      res
+        .status(400)
+        .json({ success: false, message: "No files provided for upload." });
       return;
     }
 
     if (!isGoogleDriveConfigured()) {
-      res.status(400).json({ success: false, message: 'Google Drive credentials not configured.' });
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "Google Drive credentials not configured.",
+        });
       return;
     }
 
     const uploadedFiles = [];
 
     for (const file of files) {
-      const fileMetadata = {
+      const fileMetadata: any = {
         name: file.originalname,
-        parents: parentId && parentId !== 'root' ? [parentId] : [process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || 'root'],
       };
+
+      if (targetParentId && targetParentId !== "root") {
+        fileMetadata.parents = [targetParentId];
+      }
 
       const bufferStream = new PassThrough();
       bufferStream.end(file.buffer);
@@ -781,38 +849,53 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         const response = await drive.files.create({
           requestBody: fileMetadata,
           media: media,
-          fields: 'id, name, parents, mimeType, size',
+          fields: "id, name, parents, mimeType, size",
           supportsAllDrives: true,
         });
         uploadedFile = response.data;
+        console.log(
+          `[DriveController] Uploaded file "${uploadedFile.name}" to Google Drive (ID: ${uploadedFile.id}).`,
+        );
       } catch (driveError: any) {
-        if (driveError?.message?.includes('quota') || driveError?.message?.includes('storage')) {
-          console.warn('[DriveController] Quota limit hit! Falling back to local vault storage...');
-          const fs = await import('fs');
-          const path = await import('path');
-          
-          const uploadsDir = path.join(process.cwd(), 'uploads');
+        console.warn(
+          "[DriveController] Google Drive upload failed:",
+          driveError?.message || driveError,
+        );
+        if (
+          driveError?.message?.includes("quota") ||
+          driveError?.message?.includes("storage")
+        ) {
+          console.warn(
+            "[DriveController] Quota limit hit! Falling back to local vault storage...",
+          );
+          const fs = await import("fs");
+          const path = await import("path");
+
+          const uploadsDir = path.join(process.cwd(), "uploads");
           if (!fs.existsSync(uploadsDir)) {
             fs.mkdirSync(uploadsDir, { recursive: true });
           }
-          
-          const localId = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+          const localId =
+            "local_" +
+            Date.now() +
+            "_" +
+            Math.random().toString(36).substr(2, 9);
           const localFilePath = path.join(uploadsDir, localId);
           fs.writeFileSync(localFilePath, file.buffer);
-          
+
           uploadedFile = {
             id: localId,
             name: file.originalname,
             mimeType: file.mimetype,
             size: file.size,
-            parents: fileMetadata.parents,
+            parents: targetParentId ? [targetParentId] : ["root"],
           };
         } else {
           throw driveError;
         }
       }
 
-      // Upsert into MongoDB
       await FileMetadata.findOneAndUpdate(
         { driveId: uploadedFile.id },
         {
@@ -820,11 +903,11 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
           name: uploadedFile.name,
           mimeType: uploadedFile.mimeType || file.mimetype,
           size: uploadedFile.size ? parseInt(uploadedFile.size, 10) : file.size,
-          parents: uploadedFile.parents || [parentId || 'root'],
+          parents: uploadedFile.parents || [targetParentId],
           isFolder: false,
           lastSyncedAt: new Date(),
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true },
       );
 
       uploadedFiles.push(uploadedFile);
@@ -833,13 +916,13 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
     res.json({
       success: true,
       files: uploadedFiles,
-      message: 'Files uploaded successfully.',
+      message: "Files uploaded successfully.",
     });
   } catch (error) {
-    console.error('[DriveController] uploadFiles error:', error);
+    console.error("[DriveController] uploadFiles error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to upload files.',
+      message: "Failed to upload files.",
       error: (error as Error).message,
     });
   }
