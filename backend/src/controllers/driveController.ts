@@ -147,7 +147,7 @@ export const performDriveSync = async (
     }
 
     const deleteResult = await FileMetadata.deleteMany({
-      driveId: { $nin: Array.from(discoveredIds) },
+      driveId: { $nin: Array.from(discoveredIds), $not: /^local_/ },
     });
     deletedCount = deleteResult.deletedCount || 0;
   } else {
@@ -240,7 +240,7 @@ export const performDriveSync = async (
 
     const deleteResult = await FileMetadata.deleteMany({
       parents: { $in: Array.from(visitedFolders) },
-      driveId: { $nin: Array.from(discoveredIds) },
+      driveId: { $nin: Array.from(discoveredIds), $not: /^local_/ },
     });
     deletedCount = deleteResult.deletedCount || 0;
   }
@@ -858,42 +858,32 @@ export const uploadFiles = async (
         );
       } catch (driveError: any) {
         console.warn(
-          "[DriveController] Google Drive upload failed:",
+          "[DriveController] Google Drive upload failed, falling back to local vault storage:",
           driveError?.message || driveError,
         );
-        if (
-          driveError?.message?.includes("quota") ||
-          driveError?.message?.includes("storage")
-        ) {
-          console.warn(
-            "[DriveController] Quota limit hit! Falling back to local vault storage...",
-          );
-          const fs = await import("fs");
-          const path = await import("path");
+        const fs = await import("fs");
+        const path = await import("path");
 
-          const uploadsDir = path.join(process.cwd(), "uploads");
-          if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-          }
-
-          const localId =
-            "local_" +
-            Date.now() +
-            "_" +
-            Math.random().toString(36).substr(2, 9);
-          const localFilePath = path.join(uploadsDir, localId);
-          fs.writeFileSync(localFilePath, file.buffer);
-
-          uploadedFile = {
-            id: localId,
-            name: file.originalname,
-            mimeType: file.mimetype,
-            size: file.size,
-            parents: targetParentId ? [targetParentId] : ["root"],
-          };
-        } else {
-          throw driveError;
+        const uploadsDir = path.join(process.cwd(), "uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
         }
+
+        const localId =
+          "local_" +
+          Date.now() +
+          "_" +
+          Math.random().toString(36).substr(2, 9);
+        const localFilePath = path.join(uploadsDir, localId);
+        fs.writeFileSync(localFilePath, file.buffer);
+
+        uploadedFile = {
+          id: localId,
+          name: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          parents: targetParentId ? [targetParentId] : ["root"],
+        };
       }
 
       await FileMetadata.findOneAndUpdate(
@@ -923,6 +913,103 @@ export const uploadFiles = async (
     res.status(500).json({
       success: false,
       message: "Failed to upload files.",
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const deleteFile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fileId } = req.params;
+    if (!fileId) {
+      res
+        .status(400)
+        .json({ success: false, message: "Missing fileId parameter." });
+      return;
+    }
+
+    // Handle local files
+    if (fileId.startsWith("local_")) {
+      const fs = await import("fs");
+      const path = await import("path");
+      const localFilePath = path.join(process.cwd(), "uploads", fileId);
+
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+      }
+
+      await FileMetadata.deleteOne({ driveId: fileId });
+
+      res.json({
+        success: true,
+        message: "Local file deleted successfully.",
+      });
+      return;
+    }
+
+    // Handle Google Drive files
+    if (!isGoogleDriveConfigured()) {
+      // If no drive configured, just remove from DB
+      await FileMetadata.deleteOne({ driveId: fileId });
+      res.json({
+        success: true,
+        message: "File metadata removed from vault.",
+      });
+      return;
+    }
+
+    // Check if it's a folder - if so, delete recursively from Drive
+    const fileMeta = await FileMetadata.findOne({ driveId: fileId });
+
+    try {
+      await drive.files.delete({
+        fileId,
+        supportsAllDrives: true,
+      });
+    } catch (driveErr: any) {
+      // If it's a 404, the file is already gone from Drive
+      if (driveErr?.response?.status !== 404) {
+        console.warn(
+          "[DriveController] Google Drive delete failed:",
+          driveErr?.message || driveErr,
+        );
+      }
+    }
+
+    // Remove from DB - if it was a folder, also remove children
+    if (fileMeta?.isFolder) {
+      // Recursively collect all descendant IDs
+      const idsToDelete: string[] = [fileId];
+      const queue: string[] = [fileId];
+      while (queue.length > 0) {
+        const parentId = queue.shift()!;
+        const children = await FileMetadata.find({ parents: parentId }).lean();
+        for (const child of children) {
+          idsToDelete.push(child.driveId);
+          if (child.isFolder) {
+            queue.push(child.driveId);
+          }
+        }
+      }
+      await FileMetadata.deleteMany({ driveId: { $in: idsToDelete } });
+    } else {
+      await FileMetadata.deleteOne({ driveId: fileId });
+    }
+
+    res.json({
+      success: true,
+      message: fileMeta?.isFolder
+        ? "Folder and its contents deleted successfully."
+        : "File deleted successfully.",
+    });
+  } catch (error) {
+    console.error("[DriveController] deleteFile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete file.",
       error: (error as Error).message,
     });
   }

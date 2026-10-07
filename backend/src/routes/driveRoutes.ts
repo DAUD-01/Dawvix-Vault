@@ -9,6 +9,7 @@ import {
   getVaultStats,
   createFolder,
   uploadFiles,
+  deleteFile,
 } from '../controllers/driveController.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
@@ -26,5 +27,6 @@ router.get('/view/:fileId', viewFile);
 router.get('/content/:fileId', getFileTextContent);
 router.post('/folder', createFolder);
 router.post('/upload', upload.array('files'), uploadFiles);
+router.delete('/file/:fileId', deleteFile);
 
 export default router;
