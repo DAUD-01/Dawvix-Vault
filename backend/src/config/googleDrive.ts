@@ -1,105 +1,79 @@
-import fs from 'fs';
-import path from 'path';
-import { google, drive_v3 } from 'googleapis';
-
-
-/**
- * Resolves Google Service Account credentials from:
- * 1. GOOGLE_CREDENTIALS_JSON environment variable
- * 2. credentials.json file in current or parent directory
- * 3. GOOGLE_CREDENTIALS_PATH environment variable
- */
-export const getGoogleCredentials = (): any | null => {
-  // 1. Check environment variable GOOGLE_CREDENTIALS_JSON
-  const rawEnv = process.env.GOOGLE_CREDENTIALS_JSON?.trim();
-  if (rawEnv && rawEnv !== '') {
-    try {
-      return JSON.parse(rawEnv);
-    } catch {
-      console.warn('[GoogleDrive] Could not parse GOOGLE_CREDENTIALS_JSON from env.');
-    }
-  }
-
-  // 2. Check GOOGLE_CREDENTIALS_PATH or default credentials.json locations
-  const candidatePaths = [
-    process.env.GOOGLE_CREDENTIALS_PATH,
-    path.resolve(process.cwd(), 'credentials.json'),
-    path.resolve(process.cwd(), 'backend/credentials.json'),
-    path.resolve(process.cwd(), '../credentials.json'),
-  ].filter(Boolean) as string[];
-
-  for (const filePath of candidatePaths) {
-    if (fs.existsSync(filePath)) {
-      try {
-        const fileContent = fs.readFileSync(filePath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
-        console.log(`[GoogleDrive] Loaded credentials from file: ${filePath}`);
-        return parsed;
-      } catch (err) {
-        console.warn(`[GoogleDrive] Error reading ${filePath}:`, (err as Error).message);
-      }
-    }
-  }
-
-  return null;
-};
+import { google, drive_v3 } from "googleapis";
 
 let driveInstance: drive_v3.Drive | null = null;
-let hasValidCreds: boolean = false;
 
+/**
+ * Initializes and returns the Google Drive API client using OAuth 2.0 User Credentials.
+ * Uses client ID, client secret, and refresh token from environment variables.
+ */
 export const getGoogleDriveClient = (): drive_v3.Drive => {
-  const credentials = getGoogleCredentials();
+  if (driveInstance) return driveInstance;
 
-  if (!credentials) {
-    if (!driveInstance) {
-      console.warn(
-        '[GoogleDrive] No Google Service Account credentials found. Live Drive syncing will be disabled until configured.'
-      );
-      const auth = new google.auth.GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/drive'],
-      });
-      driveInstance = google.drive({ version: 'v3', auth });
-      hasValidCreds = false;
-    }
-    return driveInstance;
-  }
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
 
-  // If already instantiated with valid credentials, return cached instance
-  if (driveInstance && hasValidCreds) {
-    return driveInstance;
+  if (!clientId || !clientSecret || !refreshToken) {
+    console.warn(
+      "[GoogleDrive] Missing OAuth2 credentials in .env. Live Drive syncing is disabled.",
+    );
+    throw new Error(
+      "Google Drive OAuth credentials missing from environment variables.",
+    );
   }
 
   try {
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
+    const auth = new google.auth.OAuth2(
+      clientId,
+      clientSecret,
+      "https://developers.google.com/oauthplayground",
+    );
 
-    driveInstance = google.drive({ version: 'v3', auth });
-    hasValidCreds = true;
+    auth.setCredentials({ refresh_token: refreshToken });
+
+    driveInstance = google.drive({ version: "v3", auth });
     console.log(
-      `[GoogleDrive] Initialized Google Drive client for Service Account: ${credentials.client_email}`
+      "[GoogleDrive] Initialized Google Drive client via OAuth2 User Token.",
     );
     return driveInstance;
   } catch (error) {
     console.error(
-      '[GoogleDrive] Failed to initialize Google Drive client:',
-      (error as Error).message
+      "[GoogleDrive] Failed to initialize OAuth2 client:",
+      (error as Error).message,
     );
     throw error;
   }
 };
 
+/**
+ * Checks whether all required OAuth 2.0 credentials exist in environment variables.
+ */
 export const isGoogleDriveConfigured = (): boolean => {
-  return getGoogleCredentials() !== null;
+  return !!(
+    process.env.GOOGLE_CLIENT_ID?.trim() &&
+    process.env.GOOGLE_CLIENT_SECRET?.trim() &&
+    process.env.GOOGLE_REFRESH_TOKEN?.trim()
+  );
 };
 
-// Export proxy instance that always routes to current drive client
+/**
+ * Mock helper maintaining backward compatibility for health check and drive status endpoints.
+ */
+export const getGoogleCredentials = (): any | null => {
+  if (isGoogleDriveConfigured()) {
+    return { client_email: "OAuth2 Authenticated User" };
+  }
+  return null;
+};
+
+/**
+ * Export proxy instance that dynamically routes calls to active drive client.
+ */
 export const drive = new Proxy({} as drive_v3.Drive, {
   get(_target, prop) {
     const client = getGoogleDriveClient();
     const val = (client as any)[prop];
-    if (typeof val === 'function') {
+    if (typeof val === "function") {
       return val.bind(client);
     }
     return val;

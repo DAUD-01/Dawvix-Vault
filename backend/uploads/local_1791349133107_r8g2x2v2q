@@ -1,0 +1,40 @@
+const { exec } = require('child_process');
+const readline = require('readline');
+
+// A list of famous websites to pick from
+const websites = [
+    'https://dawvix-anime-list.netlify.app/',
+];
+
+// Set up the command line interface wrapper
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
+
+rl.question('How many Chrome tabs would you like to open? ', (answer) => {
+    const numTabs = parseInt(answer, 10);
+
+    if (isNaN(numTabs) || numTabs <= 0) {
+        console.log('Please enter a valid number greater than 0.');
+        rl.close();
+        return;
+    }
+
+    console.log(`\nOpening ${numTabs} random website(s) in Chrome...`);
+
+    for (let i = 0; i < numTabs; i++) {
+        // Pick a random website from the array
+        const randomIndex = Math.floor(Math.random() * websites.length);
+        const url = websites[randomIndex];
+
+        // This command opens the URL specifically using Chrome on Windows
+        exec(`start chrome "${url}"`, (err) => {
+            if (err) {
+                console.error(`Failed to open ${url}:`, err);
+            }
+        });
+    }
+
+    rl.close();
+});
