@@ -52,3 +52,17 @@ export interface ToastMessage {
   type: 'success' | 'error' | 'info';
   message: string;
 }
+
+export type ClipboardAction = 'copy' | 'cut';
+
+export interface VaultClipboard {
+  action: ClipboardAction;
+  items: FileItem[];
+}
+
+export interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  targetItem: FileItem | null;
+}

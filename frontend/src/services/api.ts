@@ -158,4 +158,34 @@ export const driveService = {
 
     return await response.json();
   },
+
+  deleteFile: async (fileId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/drive/file/${fileId}`);
+    return response.data;
+  },
+
+  batchDeleteFiles: async (fileIds: string[]): Promise<{ success: boolean; message: string; deletedCount: number }> => {
+    const response = await api.post('/drive/batch-delete', { fileIds });
+    return response.data;
+  },
+
+  renameItem: async (fileId: string, newName: string): Promise<{ success: boolean; message: string; file: any }> => {
+    const response = await api.post('/drive/rename', { fileId, newName });
+    return response.data;
+  },
+
+  moveItems: async (fileIds: string[], targetFolderId: string): Promise<{ success: boolean; message: string; movedCount: number }> => {
+    const response = await api.post('/drive/move', { fileIds, targetFolderId });
+    return response.data;
+  },
+
+  copyItems: async (fileIds: string[], targetFolderId: string): Promise<{ success: boolean; message: string; copiedCount: number }> => {
+    const response = await api.post('/drive/copy', { fileIds, targetFolderId });
+    return response.data;
+  },
+
+  createFile: async (name: string, content: string = '', parentId?: string): Promise<{ success: boolean; message: string; file: any }> => {
+    const response = await api.post('/drive/create-file', { name, content, parentId });
+    return response.data;
+  },
 };

@@ -7,6 +7,11 @@ import { FileRow } from '../components/FileRow';
 import { FileCard } from '../components/FileCard';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { ContextMenu } from '../components/ContextMenu';
+import { RenameModal } from '../components/RenameModal';
+import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
+import { CreateFileModal } from '../components/CreateFileModal';
+import { FilePropertiesModal } from '../components/FilePropertiesModal';
 import { driveService } from '../services/api';
 import {
   FileItem,
@@ -16,15 +21,21 @@ import {
   SortOrder,
   SearchScope,
   ToastMessage,
+  VaultClipboard,
+  ContextMenuState,
 } from '../types';
 import {
   FolderUp,
+  FolderPlus,
+  FilePlus,
+  Clipboard,
   Inbox,
   AlertCircle,
   FileQuestion,
   RefreshCw,
   Info,
   Copy,
+  Scissors,
   Check,
   Download,
   Link,
@@ -33,6 +44,7 @@ import {
   X,
   Sparkles,
   UploadCloud,
+  Trash2,
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -54,13 +66,40 @@ export const Dashboard: React.FC = () => {
   );
   const [isEmailCopied, setIsEmailCopied] = useState<boolean>(false);
 
-  // Multi-selection state
+  // Multi-selection state (supports both files and folders)
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
 
-  // In-window file preview state
-  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+  // Clipboard state for real copy/cut/paste
+  const [clipboard, setClipboard] = useState<VaultClipboard | null>(null);
 
-  // Drag and drop state
+  // Context Menu state
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    targetItem: null,
+  });
+
+  // Modal states
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+  const [renameModal, setRenameModal] = useState<{ isOpen: boolean; item: FileItem | null }>({
+    isOpen: false,
+    item: null,
+  });
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; items: FileItem[] }>({
+    isOpen: false,
+    items: [],
+  });
+  const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean; item: FileItem | null }>({
+    isOpen: false,
+    item: null,
+  });
+  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState<boolean>(false);
+  const [newFolderName, setNewFolderName] = useState<string>('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
+  const [isCreateFileModalOpen, setIsCreateFileModalOpen] = useState<boolean>(false);
+
+  // Drag and drop state for desktop file uploads
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
   // Search, scope, filter, sort & display states
@@ -70,11 +109,6 @@ export const Dashboard: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [isGrid, setIsGrid] = useState<boolean>(false);
-
-  // Modal states
-  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState<boolean>(false);
-  const [newFolderName, setNewFolderName] = useState<string>('');
-  const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
 
   // Toast notification state
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -111,7 +145,6 @@ export const Dashboard: React.FC = () => {
   const fetchFiles = async (folderId: string, scope: SearchScope = searchScope) => {
     setIsLoading(true);
     setErrorMessage(null);
-    setSelectedFileIds(new Set());
 
     try {
       const isGlobal = scope === 'vault';
@@ -153,6 +186,7 @@ export const Dashboard: React.FC = () => {
     const urlFolder = searchParams.get('folder') || 'root';
     if (urlFolder !== currentFolderId) {
       setCurrentFolderId(urlFolder);
+      setSelectedFileIds(new Set());
     }
   }, [searchParams]);
 
@@ -171,21 +205,32 @@ export const Dashboard: React.FC = () => {
     }
   }, [searchQuery, searchScope, currentFolderId, sortBy, sortOrder]);
 
-  // Keyboard shortcut for search focus
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === '/' &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+  // Folder navigation
+  const handleOpenFolder = (folderId: string, folderName: string) => {
+    setCurrentFolderId(folderId);
+    setSearchParams({ folder: folderId });
+    setBreadcrumbs((prev) => [...prev, { id: folderId, name: folderName }]);
+    setSearchQuery('');
+    setSearchScope('folder');
+    setSelectedFileIds(new Set());
+  };
+
+  // Breadcrumb click navigation
+  const handleSelectBreadcrumb = (folderId: string, index: number) => {
+    setCurrentFolderId(folderId);
+    setSearchParams({ folder: folderId });
+    setBreadcrumbs((prev) => prev.slice(0, index + 1));
+    setSearchQuery('');
+    setSelectedFileIds(new Set());
+  };
+
+  // Navigate up one folder level
+  const handleNavigateUp = () => {
+    if (breadcrumbs.length > 1) {
+      const parentIndex = breadcrumbs.length - 2;
+      handleSelectBreadcrumb(breadcrumbs[parentIndex].id, parentIndex);
+    }
+  };
 
   // Handle Sync Drive trigger
   const handleSyncDrive = async (folderId?: string) => {
@@ -215,35 +260,13 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Dedicated Refresh handler that reconciles with Google Drive and refreshes the view
   const handleRefresh = async () => {
     await handleSyncDrive(currentFolderId === 'root' ? undefined : currentFolderId);
   };
 
-  // Folder navigation
-  const handleOpenFolder = (folderId: string, folderName: string) => {
-    setCurrentFolderId(folderId);
-    setSearchParams({ folder: folderId });
-    setBreadcrumbs((prev) => [...prev, { id: folderId, name: folderName }]);
-    setSearchQuery('');
-    setSearchScope('folder');
-  };
-
-  // Breadcrumb click navigation
-  const handleSelectBreadcrumb = (folderId: string, index: number) => {
-    setCurrentFolderId(folderId);
-    setSearchParams({ folder: folderId });
-    setBreadcrumbs((prev) => prev.slice(0, index + 1));
-    setSearchQuery('');
-  };
-
-  // Navigate up one folder level
-  const handleNavigateUp = () => {
-    if (breadcrumbs.length > 1) {
-      const parentIndex = breadcrumbs.length - 2;
-      handleSelectBreadcrumb(breadcrumbs[parentIndex].id, parentIndex);
-    }
-  };
+  // =========================================================================
+  // FILE SYSTEM OPERATIONS
+  // =========================================================================
 
   // Create folder action
   const handleCreateFolder = async (e: React.FormEvent) => {
@@ -264,6 +287,118 @@ export const Dashboard: React.FC = () => {
       addToast(`Failed to create folder: ${err.message || 'Error'}`, 'error');
     } finally {
       setIsCreatingFolder(false);
+    }
+  };
+
+  // Create new blank or templated file
+  const handleCreateFile = async (name: string, content: string) => {
+    try {
+      const result = await driveService.createFile(
+        name,
+        content,
+        currentFolderId === 'root' ? undefined : currentFolderId
+      );
+      addToast(result.message || `File "${name}" created successfully!`, 'success');
+      fetchFiles(currentFolderId, searchScope);
+      fetchStats();
+    } catch (err: any) {
+      addToast(`Failed to create file: ${err.response?.data?.message || err.message}`, 'error');
+      throw err;
+    }
+  };
+
+  // Rename item
+  const handleRename = async (fileId: string, newName: string) => {
+    try {
+      const result = await driveService.renameItem(fileId, newName);
+      addToast(result.message || `Renamed to "${newName}"`, 'success');
+      fetchFiles(currentFolderId, searchScope);
+    } catch (err: any) {
+      addToast(`Rename failed: ${err.response?.data?.message || err.message}`, 'error');
+      throw err;
+    }
+  };
+
+  // Copy items to clipboard
+  const handleCopy = (items: FileItem[]) => {
+    if (items.length === 0) return;
+    setClipboard({ action: 'copy', items });
+    addToast(`Copied ${items.length} item${items.length === 1 ? '' : 's'} to clipboard.`, 'info');
+  };
+
+  // Cut items to clipboard (Move preparation)
+  const handleCut = (items: FileItem[]) => {
+    if (items.length === 0) return;
+    setClipboard({ action: 'cut', items });
+    addToast(`Cut ${items.length} item${items.length === 1 ? '' : 's'} (ready to paste).`, 'info');
+  };
+
+  // Paste clipboard items into current folder
+  const handlePaste = async () => {
+    if (!clipboard || clipboard.items.length === 0) return;
+    const { action, items } = clipboard;
+    const fileIds = items.map((i) => i.driveId);
+
+    try {
+      if (action === 'cut') {
+        addToast(`Moving ${items.length} item${items.length === 1 ? '' : 's'}...`, 'info');
+        const res = await driveService.moveItems(fileIds, currentFolderId);
+        addToast(res.message || `Moved ${items.length} item${items.length === 1 ? '' : 's'} successfully!`, 'success');
+        setClipboard(null);
+      } else {
+        addToast(`Pasting ${items.length} item${items.length === 1 ? '' : 's'}...`, 'info');
+        const res = await driveService.copyItems(fileIds, currentFolderId);
+        addToast(res.message || `Pasted ${items.length} item${items.length === 1 ? '' : 's'} successfully!`, 'success');
+      }
+      fetchFiles(currentFolderId, searchScope);
+      fetchStats();
+    } catch (err: any) {
+      addToast(`Paste failed: ${err.response?.data?.message || err.message}`, 'error');
+    }
+  };
+
+  // Drop on folder (drag-and-drop moving into a folder)
+  const handleDropOnFolder = async (targetFolderId: string, itemIds: string[]) => {
+    if (!targetFolderId || itemIds.length === 0) return;
+    try {
+      addToast(`Moving ${itemIds.length} item${itemIds.length === 1 ? '' : 's'}...`, 'info');
+      const res = await driveService.moveItems(itemIds, targetFolderId);
+      addToast(res.message || `Moved ${itemIds.length} item${itemIds.length === 1 ? '' : 's'} successfully!`, 'success');
+      setSelectedFileIds(new Set());
+      fetchFiles(currentFolderId, searchScope);
+      fetchStats();
+    } catch (err: any) {
+      addToast(`Move failed: ${err.response?.data?.message || err.message}`, 'error');
+    }
+  };
+
+  // Confirm delete (single or batch)
+  const handleConfirmDelete = async () => {
+    const items = deleteModal.items;
+    if (items.length === 0) return;
+
+    try {
+      if (items.length === 1) {
+        await driveService.deleteFile(items[0].driveId);
+        addToast(`Deleted "${items[0].name}"`, 'success');
+      } else {
+        const fileIds = items.map((i) => i.driveId);
+        const res = await driveService.batchDeleteFiles(fileIds);
+        addToast(res.message || `Deleted ${items.length} items.`, 'success');
+      }
+
+      // Remove from selected items
+      setSelectedFileIds((prev) => {
+        const next = new Set(prev);
+        items.forEach((i) => next.delete(i.driveId));
+        return next;
+      });
+
+      fetchFiles(currentFolderId, searchScope);
+      fetchStats();
+    } catch (err: any) {
+      addToast(`Delete failed: ${err.response?.data?.message || err.message}`, 'error');
+      throw err;
     }
   };
 
@@ -291,40 +426,43 @@ export const Dashboard: React.FC = () => {
     });
   };
 
-  // Select/Deselect all in view
+  // Select / Deselect all in view
   const handleSelectAllInView = () => {
-    const nonFolderIds = filteredFiles.filter((f) => !f.isFolder).map((f) => f.driveId);
-    if (selectedFileIds.size === nonFolderIds.length && nonFolderIds.length > 0) {
+    if (selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0) {
       setSelectedFileIds(new Set());
     } else {
-      setSelectedFileIds(new Set(nonFolderIds));
+      setSelectedFileIds(new Set(filteredFiles.map((f) => f.driveId)));
     }
   };
 
+  // Selected items array
+  const selectedItems = useMemo(() => {
+    return files.filter((f) => selectedFileIds.has(f.driveId));
+  }, [files, selectedFileIds]);
+
   // Batch download selected files
   const handleBatchDownload = async () => {
-    const selectedFiles = files.filter((f) => selectedFileIds.has(f.driveId) && !f.isFolder);
-    if (selectedFiles.length === 0) return;
+    const nonFolders = selectedItems.filter((f) => !f.isFolder);
+    if (nonFolders.length === 0) return;
 
-    addToast(`Queuing ${selectedFiles.length} files for download...`, 'info');
-    for (const file of selectedFiles) {
+    addToast(`Queuing ${nonFolders.length} file(s) for download...`, 'info');
+    for (const file of nonFolders) {
       await handleDownloadFile(file.driveId, file.name);
-      // Short delay between concurrent browser triggers
       await new Promise((r) => setTimeout(r, 600));
     }
   };
 
-  // Batch copy links
+  // Batch copy stream links
   const handleBatchCopyLinks = () => {
-    const selectedFiles = files.filter((f) => selectedFileIds.has(f.driveId) && !f.isFolder);
-    if (selectedFiles.length === 0) return;
+    const nonFolders = selectedItems.filter((f) => !f.isFolder);
+    if (nonFolders.length === 0) return;
 
-    const urls = selectedFiles
+    const urls = nonFolders
       .map((f) => `${f.name}:\n${window.location.origin}${driveService.getViewUrl(f.driveId)}`)
       .join('\n\n');
 
     navigator.clipboard.writeText(urls);
-    addToast(`Copied direct stream URLs for ${selectedFiles.length} files!`, 'success');
+    addToast(`Copied direct stream URLs for ${nonFolders.length} file(s)!`, 'success');
   };
 
   // Copy service account email helper
@@ -335,6 +473,18 @@ export const Dashboard: React.FC = () => {
       addToast('Service account email copied to clipboard!', 'success');
       setTimeout(() => setIsEmailCopied(false), 2500);
     }
+  };
+
+  // Context menu opening helper
+  const handleOpenContextMenu = (e: React.MouseEvent, item: FileItem | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      targetItem: item,
+    });
   };
 
   // Client-side filtering & sorting
@@ -359,7 +509,8 @@ export const Dashboard: React.FC = () => {
             file.mimeType.includes('word') ||
             file.mimeType.includes('presentation') ||
             file.mimeType.includes('spreadsheet') ||
-            file.mimeType.includes('excel'))
+            file.mimeType.includes('excel') ||
+            file.mimeType.includes('text'))
         );
       }
       if (filterType === 'media') {
@@ -405,12 +556,104 @@ export const Dashboard: React.FC = () => {
     return result;
   }, [files, searchQuery, searchScope, filterType, sortBy, sortOrder]);
 
-  const nonFolderInViewCount = filteredFiles.filter((f) => !f.isFolder).length;
   const isAllSelected =
-    nonFolderInViewCount > 0 && selectedFileIds.size === nonFolderInViewCount;
+    filteredFiles.length > 0 && selectedFileIds.size === filteredFiles.length;
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl?.tagName === 'INPUT' ||
+        activeEl?.tagName === 'TEXTAREA' ||
+        activeEl?.getAttribute('contenteditable') === 'true';
+
+      // Quick slash for search focus
+      if (e.key === '/' && !isInput) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // Close context menu on Escape
+      if (e.key === 'Escape') {
+        if (contextMenu.visible) {
+          setContextMenu((prev) => ({ ...prev, visible: false }));
+        } else if (selectedFileIds.size > 0) {
+          setSelectedFileIds(new Set());
+        }
+        return;
+      }
+
+      // If typing in input fields, skip file operations
+      if (isInput) return;
+
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+      // Select All: Ctrl+A
+      if (isCtrlOrCmd && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        handleSelectAllInView();
+        return;
+      }
+
+      // Copy: Ctrl+C
+      if (isCtrlOrCmd && e.key.toLowerCase() === 'c') {
+        if (selectedItems.length > 0) {
+          e.preventDefault();
+          handleCopy(selectedItems);
+        }
+        return;
+      }
+
+      // Cut: Ctrl+X
+      if (isCtrlOrCmd && e.key.toLowerCase() === 'x') {
+        if (selectedItems.length > 0) {
+          e.preventDefault();
+          handleCut(selectedItems);
+        }
+        return;
+      }
+
+      // Paste: Ctrl+V
+      if (isCtrlOrCmd && e.key.toLowerCase() === 'v') {
+        if (clipboard && clipboard.items.length > 0) {
+          e.preventDefault();
+          handlePaste();
+        }
+        return;
+      }
+
+      // Rename: F2
+      if (e.key === 'F2') {
+        if (selectedItems.length === 1) {
+          e.preventDefault();
+          setRenameModal({ isOpen: true, item: selectedItems[0] });
+        }
+        return;
+      }
+
+      // Delete: Delete or Backspace
+      if (e.key === 'Delete') {
+        if (selectedItems.length > 0) {
+          e.preventDefault();
+          setDeleteModal({ isOpen: true, items: selectedItems });
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [contextMenu, selectedFileIds, selectedItems, clipboard, currentFolderId, filteredFiles]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-teal-500 selection:text-white">
+    <div
+      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-teal-500 selection:text-white"
+      onClick={() => {
+        if (contextMenu.visible) setContextMenu((prev) => ({ ...prev, visible: false }));
+      }}
+    >
       {/* Top Navbar */}
       <Navbar
         onSync={() => handleSyncDrive()}
@@ -453,6 +696,30 @@ export const Dashboard: React.FC = () => {
         ))}
       </div>
 
+      {/* Context Menu */}
+      {contextMenu.visible && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          targetItem={contextMenu.targetItem}
+          clipboard={clipboard}
+          onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))}
+          onOpenItem={(item) => handleOpenFolder(item.driveId, item.name)}
+          onPreviewItem={(item) => setPreviewFile(item)}
+          onDownloadItem={(item) => handleDownloadFile(item.driveId, item.name)}
+          onCopy={(items) => handleCopy(items)}
+          onCut={(items) => handleCut(items)}
+          onPaste={handlePaste}
+          onRename={(item) => setRenameModal({ isOpen: true, item })}
+          onDelete={(items) => setDeleteModal({ isOpen: true, items })}
+          onProperties={(item) => setPropertiesModal({ isOpen: true, item })}
+          onNewFolder={() => setIsCreateFolderModalOpen(true)}
+          onNewFile={() => setIsCreateFileModalOpen(true)}
+          onSelectAll={handleSelectAllInView}
+          onRefresh={handleRefresh}
+        />
+      )}
+
       {/* In-Window File Preview Modal */}
       {previewFile && (
         <FilePreviewModal
@@ -464,12 +731,46 @@ export const Dashboard: React.FC = () => {
         />
       )}
 
+      {/* Rename Modal */}
+      <RenameModal
+        isOpen={renameModal.isOpen}
+        item={renameModal.item}
+        onClose={() => setRenameModal({ isOpen: false, item: null })}
+        onRename={handleRename}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        items={deleteModal.items}
+        onClose={() => setDeleteModal({ isOpen: false, items: [] })}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Create File Modal */}
+      <CreateFileModal
+        isOpen={isCreateFileModalOpen}
+        onClose={() => setIsCreateFileModalOpen(false)}
+        onCreateFile={handleCreateFile}
+      />
+
+      {/* File & Folder Properties Modal */}
+      <FilePropertiesModal
+        isOpen={propertiesModal.isOpen}
+        item={propertiesModal.item}
+        onClose={() => setPropertiesModal({ isOpen: false, item: null })}
+        onToast={addToast}
+      />
+
       {/* Create Folder Modal */}
       {isCreateFolderModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-800 p-4">
-              <h3 className="text-lg font-semibold text-white">Create New Folder</h3>
+              <div className="flex items-center gap-2">
+                <FolderPlus className="h-5 w-5 text-teal-400" />
+                <h3 className="text-base font-semibold text-white">Create New Folder</h3>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -478,12 +779,12 @@ export const Dashboard: React.FC = () => {
                 }}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
             <form onSubmit={handleCreateFolder} className="p-5">
               <div className="mb-4">
-                <label htmlFor="folderName" className="mb-2 block text-sm font-medium text-slate-300">
+                <label htmlFor="folderName" className="mb-2 block text-xs font-medium text-slate-300">
                   Folder Name
                 </label>
                 <input
@@ -491,31 +792,31 @@ export const Dashboard: React.FC = () => {
                   id="folderName"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="e.g., Assignments, Project Files"
+                  placeholder="e.g. Documents, Archive, Coursework"
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   autoFocus
                 />
               </div>
-              <div className="flex items-center justify-end gap-3 mt-6">
+              <div className="flex items-center justify-end gap-2.5 mt-6">
                 <button
                   type="button"
                   onClick={() => {
                     setIsCreateFolderModalOpen(false);
                     setNewFolderName('');
                   }}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+                  className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newFolderName.trim() || isCreatingFolder}
-                  className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[100px]"
+                  className="inline-flex items-center justify-center rounded-xl bg-teal-500 px-4 py-2 text-xs font-medium text-slate-950 hover:bg-teal-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-teal-500/20"
                 >
                   {isCreatingFolder ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    'Create'
+                    'Create Folder'
                   )}
                 </button>
               </div>
@@ -525,7 +826,10 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Main Container */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+      <main
+        className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8"
+        onContextMenu={(e) => handleOpenContextMenu(e, null)}
+      >
         {/* Service Account integration helper hint */}
         {serviceAccountEmail && (
           <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-teal-500/20 bg-teal-950/30 p-3.5 text-xs text-slate-300">
@@ -536,7 +840,7 @@ export const Dashboard: React.FC = () => {
                 <code className="text-teal-300 font-mono bg-slate-900/80 px-1.5 py-0.5 rounded border border-teal-500/30">
                   {serviceAccountEmail}
                 </code>{' '}
-                as <b>Viewer</b>, then click <b>Sync Drive</b>!
+                as <b>Editor</b> or <b>Viewer</b>!
               </span>
             </div>
             <button
@@ -576,7 +880,43 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Explorer Header: Breadcrumbs & Up Button */}
+        {/* Floating Clipboard Notification / Ready to paste status bar */}
+        {clipboard && clipboard.items.length > 0 && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-teal-500/40 bg-teal-950/70 p-3 text-xs text-teal-200 shadow-xl backdrop-blur-md animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-2.5">
+              {clipboard.action === 'cut' ? (
+                <Scissors className="h-4 w-4 text-teal-400 shrink-0" />
+              ) : (
+                <Copy className="h-4 w-4 text-teal-400 shrink-0" />
+              )}
+              <span>
+                <b>{clipboard.items.length} item{clipboard.items.length === 1 ? '' : 's'}</b>{' '}
+                {clipboard.action === 'cut' ? 'cut' : 'copied'} to clipboard. Navigate to any folder and paste!
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePaste}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-teal-500 px-3 py-1.5 font-medium text-slate-950 shadow-md hover:bg-teal-400 transition-colors"
+              >
+                <Clipboard className="h-3.5 w-3.5" />
+                <span>Paste Here</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setClipboard(null)}
+                className="rounded-lg p-1 text-teal-400 hover:text-white"
+                title="Cancel clipboard"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Explorer Header: Breadcrumbs & Primary Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
           <div className="flex items-center gap-2">
             {breadcrumbs.length > 1 && (
@@ -593,51 +933,86 @@ export const Dashboard: React.FC = () => {
             <Breadcrumbs
               items={breadcrumbs}
               onSelectFolder={handleSelectBreadcrumb}
+              onDropOnFolder={handleDropOnFolder}
             />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* New Folder */}
             <button
               type="button"
               onClick={() => setIsCreateFolderModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-600/20 px-3 py-1.5 text-xs font-medium text-teal-300 hover:bg-teal-600/40 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-950/40 px-3 py-1.5 text-xs font-medium text-teal-300 hover:bg-teal-900/40 hover:border-teal-400 transition-colors"
             >
-              <FolderUp className="h-3.5 w-3.5" />
+              <FolderPlus className="h-3.5 w-3.5 text-teal-400" />
               <span>New Folder</span>
             </button>
-            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-md hover:bg-teal-500 transition-colors">
+
+            {/* New File */}
+            <button
+              type="button"
+              onClick={() => setIsCreateFileModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-950/40 px-3 py-1.5 text-xs font-medium text-teal-300 hover:bg-teal-900/40 hover:border-teal-400 transition-colors"
+            >
+              <FilePlus className="h-3.5 w-3.5 text-teal-400" />
+              <span>New File</span>
+            </button>
+
+            {/* Paste Button if clipboard has items */}
+            {clipboard && clipboard.items.length > 0 && (
+              <button
+                type="button"
+                onClick={handlePaste}
+                className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-teal-400 shadow-md transition-colors"
+              >
+                <Clipboard className="h-3.5 w-3.5" />
+                <span>Paste ({clipboard.items.length})</span>
+              </button>
+            )}
+
+            {/* Upload File */}
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-md hover:bg-teal-500 transition-colors">
               <UploadCloud className="h-3.5 w-3.5" />
-              <span>Upload File</span>
+              <span>Upload</span>
               <input
                 type="file"
                 multiple
                 className="hidden"
                 onChange={async (e) => {
-                  const files = e.target.files;
-                  if (files && files.length > 0) {
+                  const uploadFileList = e.target.files;
+                  if (uploadFileList && uploadFileList.length > 0) {
                     try {
-                      addToast(`Uploading ${files.length} file(s)...`, 'info');
-                      await driveService.uploadFiles(Array.from(files), currentFolderId === 'root' ? undefined : currentFolderId);
-                      addToast(`Successfully uploaded ${files.length} file(s)!`, 'success');
+                      addToast(`Uploading ${uploadFileList.length} file(s)...`, 'info');
+                      await driveService.uploadFiles(
+                        Array.from(uploadFileList),
+                        currentFolderId === 'root' ? undefined : currentFolderId
+                      );
+                      addToast(`Successfully uploaded ${uploadFileList.length} file(s)!`, 'success');
                       fetchFiles(currentFolderId, searchScope);
                       fetchStats();
                     } catch (err: any) {
-                      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Error';
+                      const msg =
+                        err.response?.data?.error ||
+                        err.response?.data?.message ||
+                        err.message ||
+                        'Error';
                       addToast(`Upload failed: ${msg}`, 'error');
                     }
                   }
                 }}
               />
             </label>
+
+            {/* Refresh / Sync */}
             <button
               type="button"
               onClick={handleRefresh}
               disabled={isSyncing}
               title="Reconcile with Google Drive and refresh"
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-400 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-400 transition-colors disabled:opacity-50 p-1.5"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-teal-400' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Refresh & Sync'}</span>
+              <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
             </button>
           </div>
         </div>
@@ -667,30 +1042,61 @@ export const Dashboard: React.FC = () => {
 
         {/* Multi-Selection Batch Action Floating Toolbar */}
         {selectedFileIds.size > 0 && (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-teal-500/40 bg-teal-950/40 p-3 text-xs text-teal-200 backdrop-blur animate-fadeIn">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-500/40 bg-teal-950/60 p-3 text-xs text-teal-200 backdrop-blur animate-in slide-in-from-top-1">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-teal-300">
-                {selectedFileIds.size} file{selectedFileIds.size > 1 ? 's' : ''} selected
+                {selectedFileIds.size} item{selectedFileIds.size > 1 ? 's' : ''} selected
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={handleBatchDownload}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 font-medium text-white shadow hover:bg-teal-500 transition-colors"
+                onClick={() => handleCopy(selectedItems)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-900/60 px-2.5 py-1.5 font-medium text-teal-200 hover:bg-teal-800/60 transition-colors"
               >
-                <Download className="h-3.5 w-3.5" />
-                <span>Download All ({selectedFileIds.size})</span>
+                <Copy className="h-3.5 w-3.5" />
+                <span>Copy</span>
               </button>
 
               <button
                 type="button"
-                onClick={handleBatchCopyLinks}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-900/60 px-3 py-1.5 font-medium text-teal-200 hover:bg-teal-800/60 transition-colors"
+                onClick={() => handleCut(selectedItems)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-900/60 px-2.5 py-1.5 font-medium text-teal-200 hover:bg-teal-800/60 transition-colors"
               >
-                <Link className="h-3.5 w-3.5" />
-                <span>Copy Direct URLs</span>
+                <Scissors className="h-3.5 w-3.5" />
+                <span>Cut</span>
+              </button>
+
+              {selectedItems.some((i) => !i.isFolder) && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleBatchDownload}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-2.5 py-1.5 font-medium text-white shadow hover:bg-teal-500 transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download Files</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBatchCopyLinks}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-900/60 px-2.5 py-1.5 font-medium text-teal-200 hover:bg-teal-800/60 transition-colors"
+                  >
+                    <Link className="h-3.5 w-3.5" />
+                    <span>Copy URLs</span>
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setDeleteModal({ isOpen: true, items: selectedItems })}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-2.5 py-1.5 font-medium text-white shadow hover:bg-rose-500 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete</span>
               </button>
 
               <button
@@ -707,7 +1113,9 @@ export const Dashboard: React.FC = () => {
 
         {/* Content Explorer Section */}
         <div
-          className={`relative mt-4 rounded-2xl border ${isDragging ? 'border-teal-500 bg-teal-900/20' : 'border-slate-800/80 bg-slate-900/40'} backdrop-blur-md overflow-hidden shadow-xl transition-colors`}
+          className={`relative mt-4 rounded-2xl border ${
+            isDragging ? 'border-teal-500 bg-teal-900/20' : 'border-slate-800/80 bg-slate-900/40'
+          } backdrop-blur-md overflow-hidden shadow-xl transition-colors min-h-[350px]`}
           onDragOver={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -722,16 +1130,23 @@ export const Dashboard: React.FC = () => {
             e.preventDefault();
             e.stopPropagation();
             setIsDragging(false);
-            const files = e.dataTransfer.files;
-            if (files && files.length > 0) {
+            const droppedFiles = e.dataTransfer.files;
+            if (droppedFiles && droppedFiles.length > 0) {
               try {
-                addToast(`Uploading ${files.length} file(s)...`, 'info');
-                await driveService.uploadFiles(Array.from(files), currentFolderId === 'root' ? undefined : currentFolderId);
-                addToast(`Successfully uploaded ${files.length} file(s)!`, 'success');
+                addToast(`Uploading ${droppedFiles.length} file(s)...`, 'info');
+                await driveService.uploadFiles(
+                  Array.from(droppedFiles),
+                  currentFolderId === 'root' ? undefined : currentFolderId
+                );
+                addToast(`Successfully uploaded ${droppedFiles.length} file(s)!`, 'success');
                 fetchFiles(currentFolderId, searchScope);
                 fetchStats();
               } catch (err: any) {
-                const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Error';
+                const msg =
+                  err.response?.data?.error ||
+                  err.response?.data?.message ||
+                  err.message ||
+                  'Error';
                 addToast(`Upload failed: ${msg}`, 'error');
               }
             }
@@ -741,17 +1156,18 @@ export const Dashboard: React.FC = () => {
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-3 text-teal-400">
                 <Inbox className="h-12 w-12 animate-bounce" />
-                <span className="text-lg font-semibold">Drop files here to upload</span>
+                <span className="text-lg font-semibold">Drop files here to upload to this folder</span>
               </div>
             </div>
           )}
+
           {isLoading ? (
             <div className="p-6">
               <LoadingSkeleton isGrid={isGrid} />
             </div>
           ) : filteredFiles.length === 0 ? (
             /* Empty State */
-            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
               {searchQuery ? (
                 <>
                   <div className="rounded-full bg-slate-800/60 p-3.5 text-slate-500">
@@ -781,22 +1197,29 @@ export const Dashboard: React.FC = () => {
                     <Inbox className="h-8 w-8 text-teal-400/80" />
                   </div>
                   <h3 className="mt-4 text-base font-semibold text-slate-200">
-                    This folder is currently empty
+                    This folder is empty
                   </h3>
                   <p className="mt-1 text-sm text-slate-500 max-w-sm">
-                    Share any Google Drive folder with{' '}
-                    <code className="text-teal-400 font-mono text-xs">{serviceAccountEmail}</code>{' '}
-                    and click Sync Drive below!
+                    Right-click anywhere or use the buttons above to create folders, files, or upload documents!
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => handleSyncDrive()}
-                    disabled={isSyncing}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-teal-500 transition-all disabled:opacity-60"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>Sync Now</span>
-                  </button>
+                  <div className="mt-5 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateFolderModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-950/40 px-3.5 py-2 text-xs font-semibold text-teal-300 hover:bg-teal-900/40 transition-all"
+                    >
+                      <FolderPlus className="h-3.5 w-3.5" />
+                      <span>New Folder</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateFileModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-950/40 px-3.5 py-2 text-xs font-semibold text-teal-300 hover:bg-teal-900/40 transition-all"
+                    >
+                      <FilePlus className="h-3.5 w-3.5" />
+                      <span>New File</span>
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -809,10 +1232,22 @@ export const Dashboard: React.FC = () => {
                     key={file.id || file.driveId}
                     file={file}
                     isSelected={selectedFileIds.has(file.driveId)}
+                    isCut={
+                      clipboard?.action === 'cut' &&
+                      clipboard.items.some((i) => i.driveId === file.driveId)
+                    }
+                    selectedFileIds={selectedFileIds}
                     onToggleSelect={handleToggleSelect}
                     onOpenFolder={handleOpenFolder}
                     onDownloadFile={handleDownloadFile}
                     onPreviewFile={(f) => setPreviewFile(f)}
+                    onRename={(f) => setRenameModal({ isOpen: true, item: f })}
+                    onDelete={(f) => setDeleteModal({ isOpen: true, items: [f] })}
+                    onCopy={(f) => handleCopy([f])}
+                    onCut={(f) => handleCut([f])}
+                    onProperties={(f) => setPropertiesModal({ isOpen: true, item: f })}
+                    onContextMenu={handleOpenContextMenu}
+                    onDropOnFolder={handleDropOnFolder}
                     onToast={addToast}
                   />
                 ))}
@@ -825,20 +1260,18 @@ export const Dashboard: React.FC = () => {
                 <thead>
                   <tr className="bg-slate-950/60 text-xs uppercase tracking-wider text-slate-400">
                     <th className="py-3.5 pl-4 pr-3 sm:pl-6 font-semibold flex items-center gap-3">
-                      {nonFolderInViewCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={handleSelectAllInView}
-                          title={isAllSelected ? 'Deselect All' : 'Select All'}
-                          className="text-slate-400 hover:text-teal-400"
-                        >
-                          {isAllSelected ? (
-                            <CheckSquare className="h-4 w-4 text-teal-400" />
-                          ) : (
-                            <Square className="h-4 w-4" />
-                          )}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={handleSelectAllInView}
+                        title={isAllSelected ? 'Deselect All' : 'Select All'}
+                        className="text-slate-400 hover:text-teal-400"
+                      >
+                        {isAllSelected ? (
+                          <CheckSquare className="h-4 w-4 text-teal-400" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
                       <span>Name</span>
                     </th>
                     <th className="hidden px-3 py-3.5 font-semibold sm:table-cell">Size</th>
@@ -853,10 +1286,22 @@ export const Dashboard: React.FC = () => {
                       key={file.id || file.driveId}
                       file={file}
                       isSelected={selectedFileIds.has(file.driveId)}
+                      isCut={
+                        clipboard?.action === 'cut' &&
+                        clipboard.items.some((i) => i.driveId === file.driveId)
+                      }
+                      selectedFileIds={selectedFileIds}
                       onToggleSelect={handleToggleSelect}
                       onOpenFolder={handleOpenFolder}
                       onDownloadFile={handleDownloadFile}
                       onPreviewFile={(f) => setPreviewFile(f)}
+                      onRename={(f) => setRenameModal({ isOpen: true, item: f })}
+                      onDelete={(f) => setDeleteModal({ isOpen: true, items: [f] })}
+                      onCopy={(f) => handleCopy([f])}
+                      onCut={(f) => handleCut([f])}
+                      onProperties={(f) => setPropertiesModal({ isOpen: true, item: f })}
+                      onContextMenu={handleOpenContextMenu}
+                      onDropOnFolder={handleDropOnFolder}
                       onToast={addToast}
                     />
                   ))}
