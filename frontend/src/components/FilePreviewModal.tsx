@@ -11,7 +11,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { FileItem } from "../types";
 import { driveService } from "../services/api";
-import { getFileIcon, formatBytes } from "../utils/fileUtils";
+import { getFileBadge, getFileIcon, formatBytes } from "../utils/fileUtils";
 import {
   X,
   Download,
@@ -238,16 +238,14 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const textLines = textContent ? textContent.split("\n") : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-xl animate-fadeIn">
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative flex flex-col w-full h-full max-w-7xl max-h-[92vh] rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden z-10">
-        {/* Modal Header (Remains the same) */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3 sm:px-6 bg-slate-950/80 shrink-0">
+      <div className="relative flex flex-col w-full h-full max-w-7xl max-h-[92vh] rounded-3xl border border-white/[0.1] bg-[#0c101a] shadow-2xl overflow-hidden z-10 ring-1 ring-white/[0.05]">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3 sm:px-6 bg-[#070a11]/90 shrink-0">
           <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="shrink-0 p-2 rounded-xl bg-slate-800/80 border border-slate-700/50">
-              {getFileIcon(file.mimeType, file.isFolder, "h-5 w-5")}
-            </div>
+            {getFileBadge(file.mimeType, file.isFolder, "h-5 w-5", "p-2")}
             <div className="min-w-0">
               <h3
                 className="text-sm sm:text-base font-semibold text-slate-100 truncate"

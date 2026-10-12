@@ -59,7 +59,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close context menu on click outside or escape key
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -81,9 +80,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose]);
 
-  // Adjust coordinates if menu overflows window boundaries
   const menuWidth = 220;
-  const menuHeight = targetItem ? 320 : 200;
+  const menuHeight = targetItem ? 340 : 210;
   const adjustedX = Math.min(x, window.innerWidth - menuWidth - 16);
   const adjustedY = Math.min(y, window.innerHeight - menuHeight - 16);
 
@@ -91,13 +89,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     <div
       ref={menuRef}
       style={{ left: `${Math.max(8, adjustedX)}px`, top: `${Math.max(8, adjustedY)}px` }}
-      className="fixed z-50 w-56 rounded-xl border border-slate-700/80 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl text-slate-200 text-xs animate-in fade-in zoom-in-95 duration-100 select-none"
+      className="fixed z-50 w-56 rounded-2xl border border-white/[0.1] bg-[#0c101a]/95 p-1.5 shadow-2xl backdrop-blur-2xl text-slate-200 text-xs animate-in fade-in zoom-in-95 duration-100 select-none ring-1 ring-white/[0.05]"
       onClick={(e) => e.stopPropagation()}
     >
       {targetItem ? (
-        // Context menu for a specific file or folder
         <>
-          <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-400 border-b border-slate-800/80 truncate mb-1">
+          <div className="px-3 py-2 text-[11px] font-semibold text-slate-400 border-b border-white/[0.08] truncate mb-1">
             {targetItem.name}
           </div>
 
@@ -108,7 +105,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                 onOpenItem?.(targetItem);
                 onClose();
               }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-teal-500/20 hover:text-teal-300 transition-colors"
+              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5 text-teal-400" />
               <span>Open Folder</span>
@@ -121,7 +118,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                   onPreviewItem?.(targetItem);
                   onClose();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-teal-500/20 hover:text-teal-300 transition-colors"
+                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
               >
                 <Eye className="h-3.5 w-3.5 text-teal-400" />
                 <span>Preview</span>
@@ -133,7 +130,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                   onDownloadItem?.(targetItem);
                   onClose();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-teal-500/20 hover:text-teal-300 transition-colors"
+                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
               >
                 <Download className="h-3.5 w-3.5 text-teal-400" />
                 <span>Download</span>
@@ -141,7 +138,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             </>
           )}
 
-          <div className="my-1 border-t border-slate-800/80" />
+          <div className="my-1 border-t border-white/[0.06]" />
 
           <button
             type="button"
@@ -149,13 +146,13 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onCopy([targetItem]);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/80 hover:text-white transition-colors"
+            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <Copy className="h-3.5 w-3.5 text-slate-400" />
               <span>Copy</span>
             </div>
-            <span className="text-[10px] text-slate-500">Ctrl+C</span>
+            <span className="text-[10px] text-slate-500 font-mono">Ctrl+C</span>
           </button>
 
           <button
@@ -164,13 +161,13 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onCut([targetItem]);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/80 hover:text-white transition-colors"
+            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <Scissors className="h-3.5 w-3.5 text-slate-400" />
               <span>Cut</span>
             </div>
-            <span className="text-[10px] text-slate-500">Ctrl+X</span>
+            <span className="text-[10px] text-slate-500 font-mono">Ctrl+X</span>
           </button>
 
           <button
@@ -179,16 +176,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onRename(targetItem);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/80 hover:text-white transition-colors"
+            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <Edit3 className="h-3.5 w-3.5 text-slate-400" />
               <span>Rename</span>
             </div>
-            <span className="text-[10px] text-slate-500">F2</span>
+            <span className="text-[10px] text-slate-500 font-mono">F2</span>
           </button>
 
-          <div className="my-1 border-t border-slate-800/80" />
+          <div className="my-1 border-t border-white/[0.06]" />
 
           <button
             type="button"
@@ -196,7 +193,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onProperties(targetItem);
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/80 hover:text-white transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
           >
             <Info className="h-3.5 w-3.5 text-slate-400" />
             <span>Properties</span>
@@ -208,17 +205,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onDelete([targetItem]);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-rose-900/40 text-rose-300 hover:text-rose-200 transition-colors"
+            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-rose-500/15 text-rose-300 hover:text-rose-200 transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <Trash2 className="h-3.5 w-3.5 text-rose-400" />
               <span>Delete</span>
             </div>
-            <span className="text-[10px] text-rose-400/60">Del</span>
+            <span className="text-[10px] text-rose-400/60 font-mono">Del</span>
           </button>
         </>
       ) : (
-        // Context menu for empty canvas / folder space
         <>
           <button
             type="button"
@@ -226,7 +222,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onNewFolder();
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-teal-500/20 hover:text-teal-300 transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
           >
             <FolderPlus className="h-3.5 w-3.5 text-teal-400" />
             <span>New Folder</span>
@@ -238,7 +234,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onNewFile();
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-teal-500/20 hover:text-teal-300 transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
           >
             <FilePlus className="h-3.5 w-3.5 text-teal-400" />
             <span>New File</span>
@@ -251,17 +247,17 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                 onPaste();
                 onClose();
               }}
-              className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-teal-500/20 hover:text-teal-300 transition-colors"
+              className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-teal-500/20 text-teal-300 transition-colors"
             >
               <div className="flex items-center gap-2.5">
                 <Clipboard className="h-3.5 w-3.5 text-teal-400" />
                 <span>Paste ({clipboard.items.length})</span>
               </div>
-              <span className="text-[10px] text-slate-500">Ctrl+V</span>
+              <span className="text-[10px] text-slate-500 font-mono">Ctrl+V</span>
             </button>
           )}
 
-          <div className="my-1 border-t border-slate-800/80" />
+          <div className="my-1 border-t border-white/[0.06]" />
 
           <button
             type="button"
@@ -269,13 +265,13 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onSelectAll();
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/80 hover:text-white transition-colors"
+            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <CheckSquare className="h-3.5 w-3.5 text-slate-400" />
               <span>Select All</span>
             </div>
-            <span className="text-[10px] text-slate-500">Ctrl+A</span>
+            <span className="text-[10px] text-slate-500 font-mono">Ctrl+A</span>
           </button>
 
           <button
@@ -284,10 +280,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onRefresh();
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/80 hover:text-white transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
-            <span>Refresh View</span>
+            <span>Refresh</span>
           </button>
         </>
       )}

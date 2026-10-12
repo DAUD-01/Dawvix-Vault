@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileItem } from '../types';
-import { getFileIcon, formatBytes } from '../utils/fileUtils';
+import { formatBytes, getFileBadge, getFileTypeMeta } from '../utils/fileUtils';
 import {
   Download,
   ChevronRight,
@@ -151,6 +151,8 @@ export const FileRow: React.FC<FileRowProps> = ({
       })
     : '—';
 
+  const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder);
+
   return (
     <tr
       draggable
@@ -160,16 +162,16 @@ export const FileRow: React.FC<FileRowProps> = ({
       onDrop={handleDrop}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
-      className={`group border-b border-slate-800/60 transition-all cursor-pointer ${
+      className={`group border-b border-white/[0.04] transition-all cursor-pointer ${
         isDragOver
-          ? 'bg-teal-500/20 ring-2 ring-teal-400'
+          ? 'bg-teal-500/15 ring-2 ring-teal-400'
           : isSelected
-          ? 'bg-teal-950/35 hover:bg-teal-950/50'
-          : 'hover:bg-slate-800/40'
-      } ${isCut ? 'opacity-40' : ''}`}
+          ? 'bg-teal-500/[0.08] hover:bg-teal-500/[0.12]'
+          : 'hover:bg-white/[0.035]'
+      } ${isCut ? 'opacity-40 border-dashed border-teal-500/40' : ''}`}
     >
       {/* File/Folder Name + Checkbox */}
-      <td className="py-3.5 pl-4 pr-3 sm:pl-6 text-sm">
+      <td className="py-2.5 pl-4 pr-3 sm:pl-6 text-sm">
         <div className="flex items-center gap-3">
           {onToggleSelect && (
             <input
@@ -177,18 +179,17 @@ export const FileRow: React.FC<FileRowProps> = ({
               checked={isSelected}
               onChange={() => {}}
               onClick={handleCheckboxClick}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-teal-500 focus:ring-teal-500/30 cursor-pointer transition-transform active:scale-90"
+              className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 text-teal-400 focus:ring-teal-400/30 cursor-pointer transition-transform active:scale-90"
             />
           )}
 
-          <div className="shrink-0 transition-transform duration-200 group-hover:scale-110">
-            {getFileIcon(file.mimeType, file.isFolder)}
-          </div>
+          {getFileBadge(file.mimeType, file.isFolder, 'h-4 w-4', 'p-1.5')}
+
           <div className="flex flex-col min-w-0">
-            <span className="font-medium text-slate-200 truncate group-hover:text-teal-400 transition-colors">
+            <span className="font-medium text-slate-200 truncate group-hover:text-teal-300 transition-colors text-xs sm:text-sm">
               {file.name}
             </span>
-            <span className="text-xs text-slate-500 sm:hidden">
+            <span className="text-[11px] text-slate-500 sm:hidden">
               {file.isFolder ? 'Folder' : formatBytes(file.size)} • {formattedDate}
             </span>
           </div>
@@ -196,7 +197,7 @@ export const FileRow: React.FC<FileRowProps> = ({
       </td>
 
       {/* File Size */}
-      <td className="hidden px-3 py-3.5 text-sm text-slate-400 sm:table-cell">
+      <td className="hidden px-3 py-2.5 text-xs text-slate-400 sm:table-cell">
         {file.isFolder ? (
           <span className="text-slate-600">—</span>
         ) : (
@@ -204,50 +205,48 @@ export const FileRow: React.FC<FileRowProps> = ({
         )}
       </td>
 
-      {/* MIME / Type label */}
-      <td className="hidden px-3 py-3.5 text-xs text-slate-400 md:table-cell">
-        <span className="inline-block max-w-[150px] truncate rounded bg-slate-800/80 px-2 py-0.5 text-slate-300">
-          {file.isFolder
-            ? 'Folder'
-            : file.mimeType
-                .replace('application/', '')
-                .replace('vnd.google-apps.', 'Google ')}
+      {/* Type badge */}
+      <td className="hidden px-3 py-2.5 text-xs md:table-cell">
+        <span
+          className={`inline-block rounded-md border px-2 py-0.5 text-[10px] font-medium tracking-wide ${typeMeta.border} ${typeMeta.bg} ${typeMeta.color}`}
+        >
+          {typeMeta.label}
         </span>
       </td>
 
       {/* Last Synced Date */}
-      <td className="hidden px-3 py-3.5 text-sm text-slate-400 lg:table-cell">
+      <td className="hidden px-3 py-2.5 text-xs text-slate-400 lg:table-cell">
         {formattedDate}
       </td>
 
-      {/* Actions */}
-      <td className="py-3.5 pl-3 pr-4 sm:pr-6 text-right text-sm">
-        <div className="inline-flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-          {/* Quick Action: Copy link for files */}
+      {/* Action Buttons */}
+      <td className="py-2.5 pl-3 pr-4 sm:pr-6 text-right text-sm">
+        <div className="inline-flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+          {/* Quick Action: Copy link */}
           {!file.isFolder && (
             <button
               type="button"
               onClick={handleCopyLinkClick}
-              title="Copy direct stream link"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300"
+              title="Copy link"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
             >
               {isCopied ? (
                 <Check className="h-3.5 w-3.5 text-teal-400" />
               ) : (
-                <Link className="h-3.5 w-3.5 text-slate-400 group-hover:text-teal-400" />
+                <Link className="h-3.5 w-3.5" />
               )}
             </button>
           )}
 
-          {/* Quick Action: View / Preview */}
+          {/* Quick Action: Preview */}
           {!file.isFolder && (
             <button
               type="button"
               onClick={handlePreviewClick}
-              title="Preview file"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300"
+              title="Preview"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
             >
-              <Eye className="h-3.5 w-3.5 text-slate-400 group-hover:text-teal-400" />
+              <Eye className="h-3.5 w-3.5" />
             </button>
           )}
 
@@ -257,13 +256,13 @@ export const FileRow: React.FC<FileRowProps> = ({
               type="button"
               onClick={handleDownloadClick}
               disabled={isDownloading}
-              title="Download file"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300 disabled:opacity-50"
+              title="Download"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.08] hover:text-teal-300 transition-colors disabled:opacity-50"
             >
               {isDownloading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-400" />
               ) : (
-                <Download className="h-3.5 w-3.5 text-slate-400 group-hover:text-teal-400" />
+                <Download className="h-3.5 w-3.5" />
               )}
             </button>
           )}
@@ -277,9 +276,9 @@ export const FileRow: React.FC<FileRowProps> = ({
                 onCopy(file);
               }}
               title="Copy"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
             >
-              <Copy className="h-3.5 w-3.5 text-slate-400 group-hover:text-teal-400" />
+              <Copy className="h-3.5 w-3.5" />
             </button>
           )}
 
@@ -292,9 +291,9 @@ export const FileRow: React.FC<FileRowProps> = ({
                 onCut(file);
               }}
               title="Cut (Move)"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
             >
-              <Scissors className="h-3.5 w-3.5 text-slate-400 group-hover:text-teal-400" />
+              <Scissors className="h-3.5 w-3.5" />
             </button>
           )}
 
@@ -307,9 +306,9 @@ export const FileRow: React.FC<FileRowProps> = ({
                 onRename(file);
               }}
               title="Rename"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
             >
-              <Edit3 className="h-3.5 w-3.5 text-slate-400 group-hover:text-teal-400" />
+              <Edit3 className="h-3.5 w-3.5" />
             </button>
           )}
 
@@ -322,9 +321,9 @@ export const FileRow: React.FC<FileRowProps> = ({
                 onProperties(file);
               }}
               title="Properties"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-slate-300 transition-all hover:border-teal-500 hover:bg-teal-500/10 hover:text-teal-300"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
             >
-              <Info className="h-3.5 w-3.5 text-slate-400 group-hover:text-teal-400" />
+              <Info className="h-3.5 w-3.5" />
             </button>
           )}
 
@@ -337,7 +336,7 @@ export const FileRow: React.FC<FileRowProps> = ({
                 onDelete(file);
               }}
               title="Delete"
-              className="rounded-lg border border-slate-700/60 bg-slate-800/80 p-1.5 text-xs font-medium text-rose-400 transition-all hover:border-rose-500 hover:bg-rose-500/20 hover:text-rose-300"
+              className="rounded-lg p-1 text-rose-400/80 hover:bg-rose-500/20 hover:text-rose-300 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -345,8 +344,8 @@ export const FileRow: React.FC<FileRowProps> = ({
 
           {/* Folder indicator */}
           {file.isFolder && (
-            <div className="pl-1 text-slate-500 group-hover:text-teal-400 group-hover:translate-x-1 transition-all">
-              <ChevronRight className="h-5 w-5" />
+            <div className="pl-1 text-slate-500 group-hover:text-teal-400 group-hover:translate-x-0.5 transition-all">
+              <ChevronRight className="h-4 w-4" />
             </div>
           )}
         </div>

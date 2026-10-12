@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/api";
-import { Shield, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
+import { Shield, Lock, User, ArrowRight, AlertCircle, Sparkles } from "lucide-react";
 
 export const Login: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -41,28 +41,32 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col justify-center bg-slate-950 px-4 py-12 sm:px-6 lg:px-8">
-      {/* Background ambient lighting */}
+    <div className="flex min-h-screen flex-col justify-center bg-[#06090e] px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Background ambient lighting glow */}
       <div className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden">
-        <div className="h-[500px] w-[500px] rounded-full bg-teal-500/10 blur-[120px]" />
-        <div className="h-[300px] w-[300px] rounded-full bg-emerald-500/10 blur-[100px]" />
+        <div className="h-[550px] w-[550px] rounded-full bg-teal-500/10 blur-[130px] animate-pulse" />
+        <div className="h-[350px] w-[350px] rounded-full bg-emerald-500/10 blur-[110px]" />
       </div>
 
       <div className="relative sm:mx-auto sm:w-full sm:max-w-md">
         {/* Logo and Header */}
         <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 shadow-xl shadow-teal-900/40">
-            <Shield className="h-7 w-7 text-white" />
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-teal-500 to-emerald-400 shadow-xl shadow-teal-500/25 ring-1 ring-white/20">
+            <Shield className="h-7 w-7 text-slate-950 font-bold" />
           </div>
-          <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
-            University Vault
+          <h2 className="mt-5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            Dawvix Vault
           </h2>
+          <p className="mt-1 text-xs text-slate-400 flex items-center justify-center gap-1.5">
+            <Sparkles className="h-3 w-3 text-teal-400" />
+            <span>Secure Cloud & Local Storage Gateway</span>
+          </p>
         </div>
 
         {/* Login Card */}
-        <div className="mt-8 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+        <div className="mt-7 rounded-3xl border border-white/[0.08] bg-[#0c101a]/80 p-6 shadow-2xl backdrop-blur-2xl sm:p-8 ring-1 ring-white/[0.03]">
           {errorMessage && (
-            <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300">
+            <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300 animate-in fade-in">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
               <span>{errorMessage}</span>
             </div>
@@ -86,8 +90,8 @@ export const Login: React.FC = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="username"
-                  className="block w-full rounded-xl border border-slate-800 bg-slate-950/60 py-2.5 pl-10 pr-3.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  placeholder="admin"
+                  className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 pl-10 pr-3.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-teal-500/80 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
@@ -110,7 +114,7 @@ export const Login: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="block w-full rounded-xl border border-slate-800 bg-slate-950/60 py-2.5 pl-10 pr-3.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  className="block w-full rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 pl-10 pr-3.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-teal-500/80 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
@@ -118,24 +122,21 @@ export const Login: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-950/50 transition-all hover:from-teal-400 hover:to-emerald-500 hover:shadow-teal-900/60 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-teal-400 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-teal-500/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/20 border-t-slate-950" />
                   <span>Authenticating...</span>
                 </>
               ) : (
                 <>
-                  <span>Enter Vault</span>
+                  <span>Sign In</span>
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </button>
           </form>
-
-          {/* Preset Credentials Hint */}
-          <div className="mt-6 border-t border-slate-800/80 pt-4"></div>
         </div>
       </div>
     </div>

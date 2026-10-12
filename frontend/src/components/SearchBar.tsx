@@ -119,18 +119,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   return (
     <div
-      className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between py-2 relative"
+      className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between py-1 relative"
       ref={dropdownRef}
     >
-      {/* Search Input with Scope Toggle */}
+      {/* Search Input with Scope Segmented Control */}
       <div className="flex flex-1 items-center gap-2 max-w-xl relative">
-        {/* Search Scope selector */}
-        <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/90 p-1 shrink-0">
+        {/* Scope Segmented Control */}
+        <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 shrink-0">
           <button
             type="button"
             onClick={() => onScopeChange("folder")}
             title="Search inside current folder"
-            className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
               searchScope === "folder"
                 ? "bg-teal-500/20 text-teal-300 border border-teal-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200"
@@ -143,7 +143,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             type="button"
             onClick={() => onScopeChange("vault")}
             title="Search entire vault globally"
-            className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
               searchScope === "vault"
                 ? "bg-teal-500/20 text-teal-300 border border-teal-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200"
@@ -156,7 +156,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
         {/* Search Field */}
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 transition-colors" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 transition-colors pointer-events-none" />
           <input
             ref={searchInputRef}
             type="text"
@@ -166,10 +166,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               searchScope === "vault"
-                ? "Search entire vault across all folders... (Press /)"
-                : "Filter items in current folder..."
+                ? "Search all vault files... (Press /)"
+                : "Filter files in this folder..."
             }
-            className="w-full rounded-xl border border-slate-800 bg-slate-900/80 py-2 pl-10 pr-16 text-sm text-slate-200 placeholder-slate-500 outline-none transition-all focus:border-teal-500/80 focus:ring-2 focus:ring-teal-500/20 shadow-inner"
+            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] py-2 pl-9.5 pr-14 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all focus:border-teal-500/60 focus:bg-white/[0.05] focus:ring-2 focus:ring-teal-500/20"
           />
           <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
             {searchQuery ? (
@@ -182,7 +182,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                 <X className="h-3.5 w-3.5" />
               </button>
             ) : (
-              <kbd className="hidden sm:inline-block rounded border border-slate-800 bg-slate-950 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
+              <kbd className="hidden sm:inline-block rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
                 /
               </kbd>
             )}
@@ -190,11 +190,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
           {/* Recent Searches Dropdown */}
           {showRecentDropdown && recentSearches.length > 0 && !searchQuery && (
-            <div className="absolute left-0 right-0 top-full mt-2 rounded-xl border border-slate-800 bg-slate-950/95 shadow-2xl backdrop-blur-md z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800/80 text-[11px] font-medium text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <History className="h-3.5 w-3.5 text-teal-400" /> Recent
-                  Searches
+            <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-white/[0.1] bg-[#0c101a]/95 shadow-2xl backdrop-blur-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/[0.08] text-[11px] font-medium text-slate-400">
+                <span className="flex items-center gap-1.5 text-slate-300">
+                  <History className="h-3.5 w-3.5 text-teal-400" /> Recent Searches
                 </span>
                 <button
                   type="button"
@@ -202,12 +201,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                     setRecentSearches([]);
                     localStorage.removeItem(RECENT_SEARCHES_KEY);
                   }}
-                  className="hover:text-slate-200 transition-colors"
+                  className="hover:text-slate-200 transition-colors text-[10px]"
                 >
-                  Clear
+                  Clear history
                 </button>
               </div>
-              <div className="p-1">
+              <div className="p-1.5">
                 {recentSearches.map((item, index) => (
                   <button
                     key={index}
@@ -216,10 +215,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                       onSearchChange(item);
                       setShowRecentDropdown(false);
                     }}
-                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-300 hover:bg-teal-500/10 hover:text-teal-300 rounded-lg transition-colors text-left"
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.06] hover:text-teal-300 rounded-xl transition-colors text-left group"
                   >
                     <span>{item}</span>
-                    <Sparkles className="h-3 w-3 opacity-0 group-hover:opacity-100 text-teal-400" />
+                    <Sparkles className="h-3 w-3 opacity-0 group-hover:opacity-100 text-teal-400 transition-opacity" />
                   </button>
                 ))}
               </div>
@@ -231,7 +230,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       {/* Filter, Sort & View toggles */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Quick Category Chips */}
-        <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/80 p-1">
+        <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
           <Filter className="h-3.5 w-3.5 text-slate-500 mx-1.5 hidden sm:block" />
           {categories.map((cat) => (
             <button
@@ -250,47 +249,47 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         </div>
 
         {/* Sort Dropdown */}
-        <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/80 px-2.5 py-1.5">
-          <ArrowUpDown className="h-3.5 w-3.5 text-slate-500 mr-1.5" />
+        <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] px-2.5 py-1">
+          <ArrowUpDown className="h-3.5 w-3.5 text-slate-500 mr-1.5 shrink-0" />
           <select
             value={currentSortKey}
             onChange={(e) => handleSortSelect(e.target.value)}
-            className="bg-transparent text-xs text-slate-300 outline-none cursor-pointer"
+            className="bg-transparent text-xs text-slate-300 outline-none cursor-pointer py-0.5"
           >
-            <option value="name_asc" className="bg-slate-900">
+            <option value="name_asc" className="bg-[#0b0f19]">
               Name (A → Z)
             </option>
-            <option value="name_desc" className="bg-slate-900">
+            <option value="name_desc" className="bg-[#0b0f19]">
               Name (Z → A)
             </option>
-            <option value="size_desc" className="bg-slate-900">
+            <option value="size_desc" className="bg-[#0b0f19]">
               Size (Largest)
             </option>
-            <option value="size_asc" className="bg-slate-900">
+            <option value="size_asc" className="bg-[#0b0f19]">
               Size (Smallest)
             </option>
-            <option value="lastSyncedAt_desc" className="bg-slate-900">
+            <option value="lastSyncedAt_desc" className="bg-[#0b0f19]">
               Date (Newest)
             </option>
-            <option value="lastSyncedAt_asc" className="bg-slate-900">
+            <option value="lastSyncedAt_asc" className="bg-[#0b0f19]">
               Date (Oldest)
             </option>
           </select>
         </div>
 
         {/* List / Grid toggle */}
-        <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/80 p-1">
+        <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
           <button
             type="button"
             onClick={() => onToggleGrid(false)}
             title="List View"
             className={`rounded-lg p-1.5 transition-colors ${
               !isGrid
-                ? "bg-teal-500/20 text-teal-400"
+                ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
                 : "text-slate-500 hover:text-slate-300"
             }`}
           >
-            <List className="h-4 w-4" />
+            <List className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -298,19 +297,19 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             title="Grid View"
             className={`rounded-lg p-1.5 transition-colors ${
               isGrid
-                ? "bg-teal-500/20 text-teal-400"
+                ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
                 : "text-slate-500 hover:text-slate-300"
             }`}
           >
-            <LayoutGrid className="h-4 w-4" />
+            <LayoutGrid className="h-3.5 w-3.5" />
           </button>
         </div>
 
         {/* Count badge */}
-        <div className="text-xs text-slate-500 hidden xl:block pl-1">
+        <div className="text-[11px] text-slate-500 hidden xl:block pl-1">
           {filteredCount === totalCount
             ? `${totalCount} items`
-            : `${filteredCount} of ${totalCount} items`}
+            : `${filteredCount} of ${totalCount}`}
         </div>
       </div>
     </div>
