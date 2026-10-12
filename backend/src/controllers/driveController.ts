@@ -729,53 +729,69 @@ export const createFolder = async (
 ): Promise<void> => {
   try {
     const { name, parentId } = req.body;
-    if (!name) {
+    const cleanName = (name as string)?.trim().replace(/[\/\\:*?"<>|]/g, "_");
+    if (!cleanName) {
       res
         .status(400)
-        .json({ success: false, message: "Folder name is required." });
-      return;
-    }
-
-    if (!isGoogleDriveConfigured()) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Google Drive credentials not configured.",
-        });
+        .json({ success: false, message: "Valid folder name is required." });
       return;
     }
 
     const targetParent =
       parentId && parentId !== "root" ? parentId : getRootFolderId();
 
-    const fileMetadata: any = {
-      name,
-      mimeType: "application/vnd.google-apps.folder",
-    };
+    let createdFolder: any = null;
 
-    if (targetParent && targetParent !== "root") {
-      fileMetadata.parents = [targetParent];
+    if (isGoogleDriveConfigured()) {
+      try {
+        const fileMetadata: any = {
+          name: cleanName,
+          mimeType: "application/vnd.google-apps.folder",
+        };
+
+        if (targetParent && targetParent !== "root") {
+          fileMetadata.parents = [targetParent];
+        }
+
+        const response = await drive.files.create({
+          requestBody: fileMetadata,
+          fields: "id, name, parents, mimeType",
+          supportsAllDrives: true,
+        });
+
+        createdFolder = response.data;
+      } catch (err: any) {
+        console.warn(
+          "[DriveController] Google Drive folder create failed, falling back to local folder:",
+          err?.message || err,
+        );
+      }
     }
 
-    const response = await drive.files.create({
-      requestBody: fileMetadata,
-      fields: "id, name, parents, mimeType",
-      supportsAllDrives: true,
-    });
-
-    const file = response.data;
-    const isFolder = true;
+    if (!createdFolder) {
+      const localId =
+        "local_folder_" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).substr(2, 9);
+      createdFolder = {
+        id: localId,
+        name: cleanName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: targetParent ? [targetParent] : ["root"],
+      };
+    }
 
     await FileMetadata.findOneAndUpdate(
-      { driveId: file.id },
+      { driveId: createdFolder.id },
       {
-        driveId: file.id,
-        name: file.name,
-        mimeType: file.mimeType || "application/vnd.google-apps.folder",
+        driveId: createdFolder.id,
+        name: createdFolder.name,
+        mimeType:
+          createdFolder.mimeType || "application/vnd.google-apps.folder",
         size: 0,
-        parents: file.parents || [targetParent],
-        isFolder,
+        parents: createdFolder.parents || [targetParent],
+        isFolder: true,
         lastSyncedAt: new Date(),
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
@@ -783,8 +799,8 @@ export const createFolder = async (
 
     res.json({
       success: true,
-      folder: file,
-      message: "Folder created successfully.",
+      folder: createdFolder,
+      message: `Folder "${cleanName}" created successfully.`,
     });
   } catch (error) {
     console.error("[DriveController] createFolder error:", error);
@@ -918,6 +934,285 @@ export const uploadFiles = async (
   }
 };
 
+/**
+ * MIME type lookup based on file extension
+ */
+export const getMimeTypeFromName = (filename: string): string => {
+  const parts = filename.split(".");
+  if (parts.length <= 1) return "text/plain";
+  const ext = parts.pop()?.toLowerCase();
+  switch (ext) {
+    case "txt":
+      return "text/plain";
+    case "md":
+      return "text/markdown";
+    case "json":
+      return "application/json";
+    case "js":
+    case "mjs":
+    case "cjs":
+      return "application/javascript";
+    case "ts":
+    case "tsx":
+      return "application/typescript";
+    case "jsx":
+      return "text/jsx";
+    case "html":
+    case "htm":
+      return "text/html";
+    case "css":
+      return "text/css";
+    case "csv":
+      return "text/csv";
+    case "xml":
+      return "application/xml";
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "svg":
+      return "image/svg+xml";
+    case "zip":
+      return "application/zip";
+    case "mp3":
+      return "audio/mpeg";
+    case "mp4":
+      return "video/mp4";
+    default:
+      return "application/octet-stream";
+  }
+};
+
+/**
+ * Helper to prevent circular moves: checks if targetFolder is a descendant of folderId
+ */
+const isDescendantOrSelf = async (
+  folderId: string,
+  potentialAncestorId: string,
+): Promise<boolean> => {
+  if (folderId === potentialAncestorId) return true;
+  let currentId = folderId;
+  const visited = new Set<string>();
+
+  while (currentId && currentId !== "root" && !visited.has(currentId)) {
+    visited.add(currentId);
+    const meta = await FileMetadata.findOne({ driveId: currentId }).lean();
+    if (!meta || !meta.parents || meta.parents.length === 0) break;
+    const parent = meta.parents[0];
+    if (parent === potentialAncestorId) return true;
+    currentId = parent;
+  }
+  return false;
+};
+
+/**
+ * Recursive delete helper that cleans up local disk files and remote Google Drive files
+ */
+const deleteItemRecursively = async (
+  fileId: string,
+): Promise<{ deletedIds: string[] }> => {
+  const fs = await import("fs");
+  const path = await import("path");
+  const uploadsDir = path.join(process.cwd(), "uploads");
+
+  const fileMeta = await FileMetadata.findOne({ driveId: fileId }).lean();
+  const allIdsToDelete: string[] = [fileId];
+
+  if (fileMeta?.isFolder) {
+    const queue: string[] = [fileId];
+    while (queue.length > 0) {
+      const parentId = queue.shift()!;
+      const children = await FileMetadata.find({ parents: parentId }).lean();
+      for (const child of children) {
+        allIdsToDelete.push(child.driveId);
+        if (child.isFolder) {
+          queue.push(child.driveId);
+        }
+      }
+    }
+  }
+
+  for (const id of allIdsToDelete) {
+    if (id.startsWith("local_")) {
+      const localFilePath = path.join(uploadsDir, id);
+      if (fs.existsSync(localFilePath)) {
+        try {
+          fs.unlinkSync(localFilePath);
+        } catch (e) {
+          console.warn("[deleteItemRecursively] Unlink warning for local file:", id, e);
+        }
+      }
+    } else if (isGoogleDriveConfigured()) {
+      try {
+        await drive.files.delete({ fileId: id, supportsAllDrives: true });
+      } catch (err: any) {
+        if (err?.response?.status !== 404) {
+          console.warn("[deleteItemRecursively] Drive delete warning:", id, err?.message || err);
+        }
+      }
+    }
+  }
+
+  await FileMetadata.deleteMany({ driveId: { $in: allIdsToDelete } });
+  return { deletedIds: allIdsToDelete };
+};
+
+/**
+ * Recursive copy helper for files and folders
+ */
+const copyItemRecursively = async (
+  fileId: string,
+  targetFolderId: string,
+): Promise<string[]> => {
+  const fs = await import("fs");
+  const path = await import("path");
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  const createdIds: string[] = [];
+  const sourceMeta = await FileMetadata.findOne({ driveId: fileId }).lean();
+  if (!sourceMeta) return createdIds;
+
+  // Determine duplicate naming
+  const existing = await FileMetadata.findOne({
+    parents: targetFolderId,
+    name: sourceMeta.name,
+  }).lean();
+
+  let newName = sourceMeta.name;
+  if (existing) {
+    if (sourceMeta.isFolder) {
+      newName = `${sourceMeta.name} (Copy)`;
+    } else {
+      const dotIndex = sourceMeta.name.lastIndexOf(".");
+      if (dotIndex > 0) {
+        const base = sourceMeta.name.substring(0, dotIndex);
+        const ext = sourceMeta.name.substring(dotIndex);
+        newName = `${base} (Copy)${ext}`;
+      } else {
+        newName = `${sourceMeta.name} (Copy)`;
+      }
+    }
+  }
+
+  if (sourceMeta.isFolder) {
+    let newFolderId = "";
+    if (!sourceMeta.driveId.startsWith("local_") && isGoogleDriveConfigured()) {
+      try {
+        const folderMetaReq: any = {
+          name: newName,
+          mimeType: "application/vnd.google-apps.folder",
+        };
+        if (targetFolderId && targetFolderId !== "root") {
+          folderMetaReq.parents = [targetFolderId];
+        }
+        const created = await drive.files.create({
+          requestBody: folderMetaReq,
+          fields: "id, name, parents, mimeType",
+          supportsAllDrives: true,
+        });
+        newFolderId = created.data.id!;
+      } catch (err) {
+        console.warn("[copyItemRecursively] Drive folder copy fallback to local");
+      }
+    }
+
+    if (!newFolderId) {
+      newFolderId =
+        "local_folder_" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).substr(2, 9);
+    }
+
+    await FileMetadata.create({
+      driveId: newFolderId,
+      name: newName,
+      mimeType: "application/vnd.google-apps.folder",
+      size: 0,
+      parents: [targetFolderId],
+      isFolder: true,
+      lastSyncedAt: new Date(),
+    });
+    createdIds.push(newFolderId);
+
+    const children = await FileMetadata.find({ parents: fileId }).lean();
+    for (const child of children) {
+      const childCreated = await copyItemRecursively(child.driveId, newFolderId);
+      createdIds.push(...childCreated);
+    }
+  } else {
+    let newFileId = "";
+    let newSize = sourceMeta.size || 0;
+    let newMimeType = sourceMeta.mimeType || "application/octet-stream";
+
+    if (!sourceMeta.driveId.startsWith("local_") && isGoogleDriveConfigured()) {
+      try {
+        const driveCopyReq: any = {
+          name: newName,
+        };
+        if (targetFolderId && targetFolderId !== "root") {
+          driveCopyReq.parents = [targetFolderId];
+        }
+        const copied = await drive.files.copy({
+          fileId: sourceMeta.driveId,
+          requestBody: driveCopyReq,
+          fields: "id, name, parents, mimeType, size",
+          supportsAllDrives: true,
+        });
+        newFileId = copied.data.id!;
+        newSize = copied.data.size ? parseInt(copied.data.size, 10) : newSize;
+        newMimeType = copied.data.mimeType || newMimeType;
+      } catch (err) {
+        console.warn("[copyItemRecursively] Drive copy failed, fallback to local copy");
+      }
+    }
+
+    if (!newFileId) {
+      const localSourcePath = path.join(uploadsDir, sourceMeta.driveId);
+      const newLocalId =
+        "local_" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).substr(2, 9);
+      const newLocalPath = path.join(uploadsDir, newLocalId);
+
+      if (fs.existsSync(localSourcePath)) {
+        fs.copyFileSync(localSourcePath, newLocalPath);
+        const stat = fs.statSync(newLocalPath);
+        newSize = stat.size;
+      } else {
+        fs.writeFileSync(newLocalPath, Buffer.from(""));
+        newSize = 0;
+      }
+
+      newFileId = newLocalId;
+    }
+
+    await FileMetadata.create({
+      driveId: newFileId,
+      name: newName,
+      mimeType: newMimeType,
+      size: newSize,
+      parents: [targetFolderId],
+      isFolder: false,
+      lastSyncedAt: new Date(),
+    });
+    createdIds.push(newFileId);
+  }
+
+  return createdIds;
+};
+
 export const deleteFile = async (
   req: Request,
   res: Response,
@@ -931,85 +1226,339 @@ export const deleteFile = async (
       return;
     }
 
-    // Handle local files
-    if (fileId.startsWith("local_")) {
-      const fs = await import("fs");
-      const path = await import("path");
-      const localFilePath = path.join(process.cwd(), "uploads", fileId);
-
-      if (fs.existsSync(localFilePath)) {
-        fs.unlinkSync(localFilePath);
-      }
-
-      await FileMetadata.deleteOne({ driveId: fileId });
-
-      res.json({
-        success: true,
-        message: "Local file deleted successfully.",
-      });
-      return;
-    }
-
-    // Handle Google Drive files
-    if (!isGoogleDriveConfigured()) {
-      // If no drive configured, just remove from DB
-      await FileMetadata.deleteOne({ driveId: fileId });
-      res.json({
-        success: true,
-        message: "File metadata removed from vault.",
-      });
-      return;
-    }
-
-    // Check if it's a folder - if so, delete recursively from Drive
-    const fileMeta = await FileMetadata.findOne({ driveId: fileId });
-
-    try {
-      await drive.files.delete({
-        fileId,
-        supportsAllDrives: true,
-      });
-    } catch (driveErr: any) {
-      // If it's a 404, the file is already gone from Drive
-      if (driveErr?.response?.status !== 404) {
-        console.warn(
-          "[DriveController] Google Drive delete failed:",
-          driveErr?.message || driveErr,
-        );
-      }
-    }
-
-    // Remove from DB - if it was a folder, also remove children
-    if (fileMeta?.isFolder) {
-      // Recursively collect all descendant IDs
-      const idsToDelete: string[] = [fileId];
-      const queue: string[] = [fileId];
-      while (queue.length > 0) {
-        const parentId = queue.shift()!;
-        const children = await FileMetadata.find({ parents: parentId }).lean();
-        for (const child of children) {
-          idsToDelete.push(child.driveId);
-          if (child.isFolder) {
-            queue.push(child.driveId);
-          }
-        }
-      }
-      await FileMetadata.deleteMany({ driveId: { $in: idsToDelete } });
-    } else {
-      await FileMetadata.deleteOne({ driveId: fileId });
-    }
+    const { deletedIds } = await deleteItemRecursively(fileId);
 
     res.json({
       success: true,
-      message: fileMeta?.isFolder
-        ? "Folder and its contents deleted successfully."
-        : "File deleted successfully.",
+      message: "Item deleted successfully.",
+      deletedCount: deletedIds.length,
     });
   } catch (error) {
     console.error("[DriveController] deleteFile error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to delete file.",
+      message: "Failed to delete item.",
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const batchDeleteFiles = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fileIds } = req.body;
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ success: false, message: "No items specified for deletion." });
+      return;
+    }
+
+    let totalDeleted = 0;
+    for (const fileId of fileIds) {
+      const { deletedIds } = await deleteItemRecursively(fileId);
+      totalDeleted += deletedIds.length;
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${fileIds.length} item${fileIds.length === 1 ? '' : 's'}.`,
+      deletedCount: totalDeleted,
+    });
+  } catch (error) {
+    console.error("[DriveController] batchDeleteFiles error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to batch delete items.",
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const renameItem = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fileId, newName } = req.body;
+    if (!fileId) {
+      res.status(400).json({ success: false, message: "Missing fileId parameter." });
+      return;
+    }
+
+    const cleanName = (newName as string)?.trim().replace(/[\/\\:*?"<>|]/g, "_");
+    if (!cleanName) {
+      res.status(400).json({ success: false, message: "A valid new name is required." });
+      return;
+    }
+
+    const fileMeta = await FileMetadata.findOne({ driveId: fileId });
+    if (!fileMeta) {
+      res.status(404).json({ success: false, message: "Item not found in vault." });
+      return;
+    }
+
+    if (!fileId.startsWith("local_") && isGoogleDriveConfigured()) {
+      try {
+        await drive.files.update({
+          fileId,
+          requestBody: { name: cleanName },
+          supportsAllDrives: true,
+        });
+      } catch (driveErr: any) {
+        console.warn("[renameItem] Google Drive rename warning:", driveErr?.message || driveErr);
+      }
+    }
+
+    fileMeta.name = cleanName;
+    if (!fileMeta.isFolder) {
+      fileMeta.mimeType = getMimeTypeFromName(cleanName);
+    }
+    fileMeta.lastSyncedAt = new Date();
+    await fileMeta.save();
+
+    res.json({
+      success: true,
+      message: `Successfully renamed to "${cleanName}".`,
+      file: {
+        id: fileMeta.driveId,
+        driveId: fileMeta.driveId,
+        name: fileMeta.name,
+        mimeType: fileMeta.mimeType,
+        size: fileMeta.size,
+        parents: fileMeta.parents,
+        isFolder: fileMeta.isFolder,
+        lastSyncedAt: fileMeta.lastSyncedAt,
+      },
+    });
+  } catch (error) {
+    console.error("[DriveController] renameItem error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to rename item.",
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const moveItems = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fileIds, targetFolderId } = req.body;
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ success: false, message: "No items specified to move." });
+      return;
+    }
+
+    const destFolder = (targetFolderId as string)?.trim() || getRootFolderId();
+
+    // Prevent circular hierarchy moves
+    for (const id of fileIds) {
+      if (id === destFolder) {
+        res.status(400).json({ success: false, message: "Cannot move a folder into itself." });
+        return;
+      }
+      const isCircular = await isDescendantOrSelf(destFolder, id);
+      if (isCircular) {
+        res.status(400).json({ success: false, message: "Cannot move a folder into one of its subfolders." });
+        return;
+      }
+    }
+
+    let movedCount = 0;
+    for (const fileId of fileIds) {
+      const fileMeta = await FileMetadata.findOne({ driveId: fileId });
+      if (!fileMeta) continue;
+
+      const previousParents = fileMeta.parents || [];
+
+      if (!fileId.startsWith("local_") && isGoogleDriveConfigured()) {
+        try {
+          const updateParams: any = {
+            fileId,
+            supportsAllDrives: true,
+          };
+          if (destFolder !== "root") {
+            updateParams.addParents = destFolder;
+          }
+          const toRemove = previousParents.filter(
+            (p) => p !== "root" && p !== destFolder,
+          );
+          if (toRemove.length > 0) {
+            updateParams.removeParents = toRemove.join(",");
+          }
+          await drive.files.update(updateParams);
+        } catch (driveErr: any) {
+          console.warn("[moveItems] Drive move warning:", driveErr?.message || driveErr);
+        }
+      }
+
+      fileMeta.parents = [destFolder];
+      fileMeta.lastSyncedAt = new Date();
+      await fileMeta.save();
+      movedCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully moved ${movedCount} item${movedCount === 1 ? "" : "s"}.`,
+      movedCount,
+      targetFolderId: destFolder,
+    });
+  } catch (error) {
+    console.error("[DriveController] moveItems error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to move items.",
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const copyItems = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fileIds, targetFolderId } = req.body;
+    if (!Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ success: false, message: "No items specified to copy." });
+      return;
+    }
+
+    const destFolder = (targetFolderId as string)?.trim() || getRootFolderId();
+    let totalCopied = 0;
+
+    for (const fileId of fileIds) {
+      const copiedIds = await copyItemRecursively(fileId, destFolder);
+      if (copiedIds.length > 0) totalCopied++;
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully copied ${totalCopied} item${totalCopied === 1 ? "" : "s"}.`,
+      copiedCount: totalCopied,
+      targetFolderId: destFolder,
+    });
+  } catch (error) {
+    console.error("[DriveController] copyItems error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to copy items.",
+      error: (error as Error).message,
+    });
+  }
+};
+
+export const createFile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { name, content = "", parentId } = req.body;
+    const cleanName = (name as string)?.trim().replace(/[\/\\:*?"<>|]/g, "_");
+    if (!cleanName) {
+      res.status(400).json({ success: false, message: "Valid file name is required." });
+      return;
+    }
+
+    const targetParentId =
+      parentId && parentId !== "root" ? parentId : getRootFolderId();
+    const mimeType = getMimeTypeFromName(cleanName);
+    const buffer = Buffer.from(content, "utf8");
+
+    let createdFile: any = null;
+
+    if (isGoogleDriveConfigured()) {
+      try {
+        const fileMetadata: any = {
+          name: cleanName,
+        };
+        if (targetParentId && targetParentId !== "root") {
+          fileMetadata.parents = [targetParentId];
+        }
+
+        const bufferStream = new PassThrough();
+        bufferStream.end(buffer);
+
+        const response = await drive.files.create({
+          requestBody: fileMetadata,
+          media: {
+            mimeType,
+            body: bufferStream,
+          },
+          fields: "id, name, parents, mimeType, size",
+          supportsAllDrives: true,
+        });
+        createdFile = response.data;
+      } catch (driveErr: any) {
+        console.warn(
+          "[createFile] Google Drive file creation failed, fallback to local:",
+          driveErr?.message || driveErr,
+        );
+      }
+    }
+
+    if (!createdFile) {
+      const fs = await import("fs");
+      const path = await import("path");
+      const uploadsDir = path.join(process.cwd(), "uploads");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const localId =
+        "local_" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).substr(2, 9);
+      const localFilePath = path.join(uploadsDir, localId);
+      fs.writeFileSync(localFilePath, buffer);
+
+      createdFile = {
+        id: localId,
+        name: cleanName,
+        mimeType,
+        size: buffer.length,
+        parents: targetParentId ? [targetParentId] : ["root"],
+      };
+    }
+
+    const newDoc = await FileMetadata.findOneAndUpdate(
+      { driveId: createdFile.id },
+      {
+        driveId: createdFile.id,
+        name: createdFile.name,
+        mimeType: createdFile.mimeType || mimeType,
+        size: createdFile.size ? parseInt(createdFile.size, 10) : buffer.length,
+        parents: createdFile.parents || [targetParentId],
+        isFolder: false,
+        lastSyncedAt: new Date(),
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    res.json({
+      success: true,
+      message: `File "${cleanName}" created successfully.`,
+      file: {
+        id: newDoc.driveId,
+        driveId: newDoc.driveId,
+        name: newDoc.name,
+        mimeType: newDoc.mimeType,
+        size: newDoc.size,
+        parents: newDoc.parents,
+        isFolder: newDoc.isFolder,
+        lastSyncedAt: newDoc.lastSyncedAt,
+      },
+    });
+  } catch (error) {
+    console.error("[DriveController] createFile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create file.",
       error: (error as Error).message,
     });
   }

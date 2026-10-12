@@ -10,6 +10,11 @@ import {
   createFolder,
   uploadFiles,
   deleteFile,
+  batchDeleteFiles,
+  renameItem,
+  moveItems,
+  copyItems,
+  createFile,
 } from '../controllers/driveController.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
@@ -28,5 +33,10 @@ router.get('/content/:fileId', getFileTextContent);
 router.post('/folder', createFolder);
 router.post('/upload', upload.array('files'), uploadFiles);
 router.delete('/file/:fileId', deleteFile);
+router.post('/batch-delete', batchDeleteFiles);
+router.post('/rename', renameItem);
+router.post('/move', moveItems);
+router.post('/copy', copyItems);
+router.post('/create-file', createFile);
 
 export default router;
