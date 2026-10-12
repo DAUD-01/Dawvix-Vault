@@ -6,6 +6,10 @@ import {
   getGoogleCredentials,
 } from "../config/googleDrive.js";
 import { FileMetadata } from "../models/FileMetadata.js";
+import {
+  findSyncthingArtifactIds,
+  isSyncthingArtifactName,
+} from "../utils/syncthingArtifacts.js";
 
 /**
  * Helper to retrieve effective root folder ID from environment or fallback to 'root'
@@ -22,7 +26,9 @@ export const getVaultStats = async (
   res: Response,
 ): Promise<void> => {
   try {
+    const excludedIds = await findSyncthingArtifactIds();
     const [stats] = await FileMetadata.aggregate([
+      { $match: { driveId: { $nin: excludedIds } } },
       {
         $group: {
           _id: null,
@@ -88,11 +94,17 @@ export const performDriveSync = async (
   let syncedCount = 0;
   let deletedCount = 0;
 
+  const existingArtifactIds = await findSyncthingArtifactIds();
+  if (existingArtifactIds.length > 0) {
+    const purgeResult = await FileMetadata.deleteMany({
+      driveId: { $in: existingArtifactIds },
+    });
+    deletedCount += purgeResult.deletedCount || 0;
+  }
+
   if (targetFolderId === "root") {
     let pageToken: string | undefined = undefined;
     const allItems: any[] = [];
-    const itemMap = new Map<string, any>();
-    const discoveredIds = new Set<string>();
 
     do {
       const response: any = await drive.files.list({
@@ -109,14 +121,43 @@ export const performDriveSync = async (
       for (const file of files) {
         if (!file.id || !file.name) continue;
         allItems.push(file);
-        itemMap.set(file.id, file);
-        discoveredIds.add(file.id);
       }
 
       pageToken = response.data.nextPageToken || undefined;
     } while (pageToken);
 
-    for (const item of allItems) {
+    const excludedIds = new Set<string>(
+      allItems
+        .filter((item) => isSyncthingArtifactName(item.name))
+        .map((item) => item.id),
+    );
+    let foundExcludedParent = true;
+    while (foundExcludedParent) {
+      foundExcludedParent = false;
+      for (const item of allItems) {
+        if (
+          !excludedIds.has(item.id) &&
+          item.parents?.some((parentId: string) => excludedIds.has(parentId))
+        ) {
+          excludedIds.add(item.id);
+          foundExcludedParent = true;
+        }
+      }
+    }
+
+    // Drive items can appear more than once in a paginated result. Reconcile each
+    // Drive id once so counts, metadata, and downstream listings stay canonical.
+    const visibleItems = Array.from(
+      new Map(
+        allItems
+          .filter((item) => !excludedIds.has(item.id))
+          .map((item) => [item.id, item]),
+      ).values(),
+    );
+    const itemMap = new Map(visibleItems.map((item) => [item.id, item]));
+    const discoveredIds = new Set(visibleItems.map((item) => item.id));
+
+    for (const item of visibleItems) {
       const isFolder = item.mimeType === "application/vnd.google-apps.folder";
       let itemParents = item.parents || [];
 
@@ -205,7 +246,11 @@ export const performDriveSync = async (
 
         for (const item of items) {
           if (!item.id || !item.name) continue;
+          if (isSyncthingArtifactName(item.name)) continue;
 
+          // A Drive item may belong to several folders. Its complete parent list
+          // is already persisted on first discovery, so do not process it again.
+          if (discoveredIds.has(item.id)) continue;
           discoveredIds.add(item.id);
           const isFolder =
             item.mimeType === "application/vnd.google-apps.folder";
@@ -303,7 +348,32 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
       sortObj.name = order;
     }
 
+    const excludedIds = await findSyncthingArtifactIds();
+    filter.driveId = { $nin: excludedIds };
+
     const files = await FileMetadata.find(filter).sort(sortObj).lean();
+    // Keep one canonical record when the cache contains duplicate metadata for
+    // the same item in the same folder. Different folders remain independent.
+    const uniqueFiles = Array.from(
+      files.reduce((unique, file) => {
+        const key = [
+          file.isFolder ? "folder" : "file",
+          file.name.trim().toLocaleLowerCase(),
+          file.mimeType.toLocaleLowerCase(),
+          String(file.size),
+          [...file.parents].sort().join(","),
+        ].join("\u0000");
+        const current = unique.get(key);
+        if (
+          !current ||
+          new Date(file.lastSyncedAt).getTime() >
+            new Date(current.lastSyncedAt).getTime()
+        ) {
+          unique.set(key, file);
+        }
+        return unique;
+      }, new Map<string, (typeof files)[number]>()).values(),
+    );
 
     let currentFolder = null;
     if (folderId !== rootFolderId && folderId !== "root") {
@@ -325,8 +395,8 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
           }
         : null,
       serviceAccountEmail: creds?.client_email || null,
-      count: files.length,
-      files: files.map((file) => ({
+      count: uniqueFiles.length,
+      files: uniqueFiles.map((file) => ({
         id: file.driveId,
         driveId: file.driveId,
         name: file.name,
@@ -955,6 +1025,29 @@ export const getMimeTypeFromName = (filename: string): string => {
     case "ts":
     case "tsx":
       return "application/typescript";
+    case "c":
+    case "h":
+    case "cc":
+    case "cpp":
+    case "cxx":
+    case "hh":
+    case "hpp":
+    case "hxx":
+    case "cs":
+    case "dart":
+    case "go":
+    case "java":
+    case "kt":
+    case "lua":
+    case "m":
+    case "mm":
+    case "php":
+    case "py":
+    case "rb":
+    case "rs":
+    case "scala":
+    case "swift":
+      return "text/plain";
     case "jsx":
       return "text/jsx";
     case "html":
@@ -1081,6 +1174,7 @@ const copyItemRecursively = async (
   const createdIds: string[] = [];
   const sourceMeta = await FileMetadata.findOne({ driveId: fileId }).lean();
   if (!sourceMeta) return createdIds;
+  if (isSyncthingArtifactName(sourceMeta.name)) return createdIds;
 
   // Determine duplicate naming
   const existing = await FileMetadata.findOne({

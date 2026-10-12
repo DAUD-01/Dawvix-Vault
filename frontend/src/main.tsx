@@ -37,16 +37,16 @@ class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100">
-          <div className="max-w-md w-full rounded-2xl border border-rose-500/30 bg-slate-900/90 p-6 shadow-2xl backdrop-blur text-center">
-            <div className="h-12 w-12 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
-              ⚠️
+          <div className="max-w-md w-full rounded-2xl border border-rose-500/30 bg-slate-900/90 p-6 shadow-2xl  text-center">
+            <div className="h-12 w-12 rounded-xl bg-rose-500/10 text-[color:var(--color-error)] flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
+              !
             </div>
             <h2 className="text-lg font-bold text-slate-100 mb-2">Something went wrong</h2>
             <p className="text-xs text-slate-400 mb-4">
               An unexpected interface error occurred. You can reload or reset stored application state.
             </p>
             {this.state.error && (
-              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-left font-mono text-[11px] text-rose-300 mb-5 overflow-auto max-h-32">
+              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-left font-mono text-[11px] text-[color:var(--color-error)] mb-5 overflow-auto max-h-32">
                 {this.state.error.message}
               </div>
             )}
@@ -61,7 +61,7 @@ class ErrorBoundary extends Component<Props, State> {
               <button
                 type="button"
                 onClick={this.handleReset}
-                className="rounded-xl bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-500 shadow transition-colors"
+                className="rounded-md bg-teal-600 px-4 py-2 text-xs font-semibold text-[color:var(--color-on-primary)] hover:bg-teal-500 transition-colors"
               >
                 Reset & Go to Login
               </button>

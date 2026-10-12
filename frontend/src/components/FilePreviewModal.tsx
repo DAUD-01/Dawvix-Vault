@@ -32,6 +32,71 @@ import {
   Terminal,
 } from "lucide-react";
 
+const CODE_LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  c: "c",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  h: "cpp",
+  hh: "cpp",
+  hpp: "cpp",
+  hxx: "cpp",
+  cs: "csharp",
+  css: "css",
+  dart: "dart",
+  diff: "diff",
+  dockerfile: "docker",
+  go: "go",
+  html: "html",
+  ini: "ini",
+  java: "java",
+  json: "json",
+  js: "javascript",
+  jsx: "jsx",
+  kt: "kotlin",
+  lua: "lua",
+  makefile: "makefile",
+  m: "objectivec",
+  mm: "objectivec",
+  php: "php",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  scala: "scala",
+  scss: "scss",
+  sh: "bash",
+  sql: "sql",
+  swift: "swift",
+  ts: "typescript",
+  tsx: "tsx",
+  toml: "toml",
+  vue: "markup",
+  xml: "xml",
+  yaml: "yaml",
+  yml: "yaml",
+};
+
+const TEXT_FILE_EXTENSIONS = new Set([
+  ...Object.keys(CODE_LANGUAGE_BY_EXTENSION),
+  "txt",
+  "md",
+  "markdown",
+  "csv",
+  "log",
+  "env",
+]);
+
+const getFileExtension = (filename: string): string =>
+  filename.includes(".")
+    ? filename.split(".").pop()?.toLowerCase() || ""
+    : filename.toLowerCase();
+
+const getCodeLanguage = (filename: string): string | undefined =>
+  CODE_LANGUAGE_BY_EXTENSION[getFileExtension(filename)];
+
+const isPreviewableTextFile = (filename: string): boolean =>
+  TEXT_FILE_EXTENSIONS.has(getFileExtension(filename));
+
 // --- NEW: Dedicated Component for Premium Code Blocks ---
 const CodeBlock = ({
   language,
@@ -60,7 +125,7 @@ const CodeBlock = ({
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-on-surface hover:bg-slate-700 transition-colors"
         >
           {isCopied ? (
             <>
@@ -164,9 +229,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       file.mimeType.includes("javascript") ||
       file.mimeType.includes("typescript") ||
       file.mimeType.includes("csv") ||
-      /\.(txt|md|json|ts|tsx|js|jsx|py|html|css|scss|sh|yaml|yml|xml|csv|log|env|sql)$/i.test(
-        file.name,
-      );
+      isPreviewableTextFile(file.name);
 
     if (isTextBased) {
       setIsLoadingContent(true);
@@ -208,9 +271,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     mime.includes("javascript") ||
     mime.includes("typescript") ||
     mime.includes("csv") ||
-    /\.(txt|json|ts|tsx|js|jsx|py|html|css|scss|sh|yaml|yml|xml|csv|log|env|sql)$/i.test(
-      name,
-    );
+    isPreviewableTextFile(name);
+  const codeLanguage = getCodeLanguage(name);
 
   const handleDownload = async () => {
     try {
@@ -238,18 +300,17 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const textLines = textContent ? textContent.split("\n") : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-xl animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75  animate-fadeIn">
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative flex flex-col w-full h-full max-w-7xl max-h-[92vh] rounded-3xl border border-white/[0.1] bg-[#0c101a] shadow-2xl overflow-hidden z-10 ring-1 ring-white/[0.05]">
+      <div className="relative flex flex-col w-full h-full max-w-7xl max-h-[92vh] rounded-3xl border border-outline/[0.1] bg-surface shadow-2xl overflow-hidden z-10 ring-1 ring-white/[0.05]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3 sm:px-6 bg-[#070a11]/90 shrink-0">
+        <div className="flex items-center justify-between border-b border-outline/[0.08] px-4 py-3 sm:px-6 bg-surface/90 shrink-0">
           <div className="flex items-center gap-3 min-w-0 pr-2">
             {getFileBadge(file.mimeType, file.isFolder, "h-5 w-5", "p-2")}
             <div className="min-w-0">
               <h3
                 className="text-sm sm:text-base font-semibold text-slate-100 truncate"
-                title={file.name}
               >
                 {file.name}
               </h3>
@@ -280,7 +341,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   type="button"
                   onClick={handlePrev}
                   disabled={!hasPrev}
-                  className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
+                  className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-700 hover:text-on-surface disabled:opacity-30 disabled:hover:bg-transparent"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -288,7 +349,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   type="button"
                   onClick={handleNext}
                   disabled={!hasNext}
-                  className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
+                  className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-700 hover:text-on-surface disabled:opacity-30 disabled:hover:bg-transparent"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -321,7 +382,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               type="button"
               onClick={handleDownload}
               disabled={isDownloading}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-teal-500 transition-all disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-medium text-[color:var(--color-on-primary)] shadow hover:bg-teal-500 transition-colors disabled:opacity-60"
             >
               {isDownloading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -333,7 +394,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-800 bg-slate-800/80 p-2 text-slate-400 hover:border-slate-700 hover:bg-slate-700/80 hover:text-white transition-colors ml-1"
+              className="rounded-xl border border-slate-800 bg-slate-800/80 p-2 text-slate-400 hover:border-slate-700 hover:bg-slate-700/80 hover:text-on-surface transition-colors ml-1"
             >
               <X className="h-4 w-4" />
             </button>
@@ -345,17 +406,16 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           {isPdfOrDoc ? (
             <iframe
               src={viewUrl}
-              title={file.name}
               className="w-full h-full border-0 bg-slate-900"
             />
           ) : isImage ? (
             <div className="relative w-full h-full flex flex-col items-center justify-center p-4 overflow-auto">
               {/* Zoom controls remain exactly the same */}
-              <div className="absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/90 border border-slate-800 p-1.5 shadow-lg z-20 backdrop-blur">
+              <div className="absolute top-3 right-3 flex items-center gap-1 rounded-xl bg-slate-900/90 border border-slate-800 p-1.5 shadow-lg z-20 ">
                 <button
                   type="button"
                   onClick={() => setImageScale((s) => Math.max(0.3, s - 0.25))}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-on-surface hover:bg-slate-800"
                 >
                   <ZoomOut className="h-4 w-4" />
                 </button>
@@ -365,14 +425,14 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setImageScale((s) => Math.min(4, s + 0.25))}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-on-surface hover:bg-slate-800"
                 >
                   <ZoomIn className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setImageScale(1)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 ml-1 border-l border-slate-800 pl-2"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-on-surface hover:bg-slate-800 ml-1 border-l border-slate-800 pl-2"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
@@ -389,7 +449,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             </div>
           ) : isVideo ? (
             <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
-              <div className="absolute top-4 right-4 flex items-center gap-1.5 rounded-xl bg-slate-900/90 border border-slate-800 p-1.5 z-20 backdrop-blur">
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 rounded-xl bg-slate-900/90 border border-slate-800 p-1.5 z-20 ">
                 <Gauge className="h-3.5 w-3.5 text-teal-400 ml-1" />
                 <span className="text-xs text-slate-400 mr-1">Speed:</span>
                 {[1, 1.25, 1.5, 2].map((speed) => (
@@ -415,7 +475,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             </div>
           ) : isAudio ? (
             <div className="flex flex-col items-center justify-center p-8 max-w-lg w-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl">
-              <div className="h-20 w-20 rounded-2xl bg-gradient-to-tr from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-950/40 mb-6">
+              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-md border border-teal-500/30 bg-teal-500/10">
                 <FileText className="h-10 w-10 text-white" />
               </div>
               <h4 className="text-base font-semibold text-slate-100 text-center truncate w-full mb-1">
@@ -445,7 +505,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   </div>
                 ) : hasError ? (
                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center h-full">
-                    <FileQuestion className="h-10 w-10 text-rose-400" />
+                    <FileQuestion className="h-10 w-10 text-[color:var(--color-error)]" />
                     <p className="text-sm text-slate-300">
                       Could not read markdown source
                     </p>
@@ -518,7 +578,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsWordWrap((w) => !w)}
-                    className={`flex items-center gap-1 rounded-lg border border-slate-800 px-2 py-1 transition-colors ${isWordWrap ? "bg-teal-500/20 text-teal-300 border-teal-500/40" : "bg-slate-800 text-slate-400 hover:text-white"}`}
+                    className={`flex items-center gap-1 rounded-lg border border-slate-800 px-2 py-1 transition-colors ${isWordWrap ? "bg-teal-500/20 text-teal-300 border-teal-500/40" : "bg-slate-800 text-slate-400 hover:text-on-surface"}`}
                   >
                     <WrapText className="h-3.5 w-3.5" />
                     <span>Wrap</span>
@@ -527,7 +587,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                     <button
                       type="button"
                       onClick={handleCopyText}
-                      className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-800 px-2.5 py-1 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+                      className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-800 px-2.5 py-1 text-slate-300 hover:text-on-surface hover:bg-slate-700 transition-colors"
                     >
                       {isCopied ? (
                         <>
@@ -557,11 +617,38 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                       </div>
                     ))}
                   </div>
-                  <pre
-                    className={`flex-1 p-4 text-slate-200 leading-relaxed font-mono selection:bg-teal-500 selection:text-white ${isWordWrap ? "whitespace-pre-wrap" : "whitespace-pre"}`}
-                  >
-                    {textContent}
-                  </pre>
+                  <div className="min-w-0 flex-1">
+                    {codeLanguage ? (
+                      <SyntaxHighlighter
+                        style={vscDarkPlus as any}
+                        language={codeLanguage}
+                        showLineNumbers
+                        wrapLongLines={isWordWrap}
+                        customStyle={{
+                          minHeight: "100%",
+                          margin: 0,
+                          padding: "1rem",
+                          background: "transparent",
+                          fontSize: "0.75rem",
+                          lineHeight: "1.625",
+                        }}
+                        lineNumberStyle={{
+                          minWidth: "2.5em",
+                          paddingRight: "1em",
+                          color: "#64748b",
+                          userSelect: "none",
+                        }}
+                      >
+                        {textContent || ""}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <pre
+                        className={`p-4 text-slate-200 leading-relaxed font-mono selection:bg-teal-500 selection:text-white ${isWordWrap ? "whitespace-pre-wrap" : "whitespace-pre"}`}
+                      >
+                        {textContent}
+                      </pre>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -578,7 +665,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 type="button"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-500 transition-all"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-[color:var(--color-on-primary)] hover:bg-teal-500 transition-colors"
               >
                 {isDownloading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

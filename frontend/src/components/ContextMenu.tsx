@@ -14,6 +14,7 @@ import {
   RefreshCw,
   CheckSquare,
   ExternalLink,
+  Link,
 } from 'lucide-react';
 
 interface ContextMenuProps {
@@ -25,6 +26,7 @@ interface ContextMenuProps {
   onOpenItem?: (item: FileItem) => void;
   onPreviewItem?: (item: FileItem) => void;
   onDownloadItem?: (item: FileItem) => void;
+  onCopyLink?: (item: FileItem) => void;
   onCopy: (items: FileItem[]) => void;
   onCut: (items: FileItem[]) => void;
   onPaste: () => void;
@@ -46,6 +48,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onOpenItem,
   onPreviewItem,
   onDownloadItem,
+  onCopyLink,
   onCopy,
   onCut,
   onPaste,
@@ -80,21 +83,21 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose]);
 
-  const menuWidth = 220;
-  const menuHeight = targetItem ? 340 : 210;
-  const adjustedX = Math.min(x, window.innerWidth - menuWidth - 16);
-  const adjustedY = Math.min(y, window.innerHeight - menuHeight - 16);
+  const menuWidth = 224;
+  const menuHeight = targetItem ? 380 : 230;
+  const adjustedX = Math.max(12, Math.min(x, window.innerWidth - menuWidth - 12));
+  const adjustedY = Math.max(12, Math.min(y, window.innerHeight - menuHeight - 12));
 
   return (
     <div
       ref={menuRef}
-      style={{ left: `${Math.max(8, adjustedX)}px`, top: `${Math.max(8, adjustedY)}px` }}
-      className="fixed z-50 w-56 rounded-2xl border border-white/[0.1] bg-[#0c101a]/95 p-1.5 shadow-2xl backdrop-blur-2xl text-slate-200 text-xs animate-in fade-in zoom-in-95 duration-100 select-none ring-1 ring-white/[0.05]"
+      style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
+      className="fixed z-50 w-56 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-outline/[0.12] bg-surface/95 p-1.5 shadow-2xl glass-panel text-slate-200 text-xs animate-in fade-in zoom-in-95 duration-100 select-none ring-1 ring-white/[0.05]"
       onClick={(e) => e.stopPropagation()}
     >
       {targetItem ? (
         <>
-          <div className="px-3 py-2 text-[11px] font-semibold text-slate-400 border-b border-white/[0.08] truncate mb-1">
+          <div className="px-3 py-2 text-[11px] font-semibold text-slate-400 border-b border-outline/[0.08] truncate mb-1">
             {targetItem.name}
           </div>
 
@@ -105,7 +108,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                 onOpenItem?.(targetItem);
                 onClose();
               }}
-              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
+              className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-teal-300 transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5 text-teal-400" />
               <span>Open Folder</span>
@@ -118,7 +121,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                   onPreviewItem?.(targetItem);
                   onClose();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
+                className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-teal-300 transition-colors"
               >
                 <Eye className="h-3.5 w-3.5 text-teal-400" />
                 <span>Preview</span>
@@ -130,7 +133,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                   onDownloadItem?.(targetItem);
                   onClose();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
+                className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-teal-300 transition-colors"
               >
                 <Download className="h-3.5 w-3.5 text-teal-400" />
                 <span>Download</span>
@@ -138,7 +141,21 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             </>
           )}
 
-          <div className="my-1 border-t border-white/[0.06]" />
+          <div className="my-1 border-t border-outline/[0.06]" />
+
+          {!targetItem.isFolder && (
+            <button
+              type="button"
+              onClick={() => {
+                onCopyLink?.(targetItem);
+                onClose();
+              }}
+              className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-on-surface transition-colors"
+            >
+              <Link className="h-3.5 w-3.5 text-slate-400" />
+              <span>Copy link</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -146,7 +163,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onCopy([targetItem]);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
+            className="flex min-h-9 w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-on-surface transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <Copy className="h-3.5 w-3.5 text-slate-400" />
@@ -161,7 +178,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onCut([targetItem]);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
+            className="flex min-h-9 w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-on-surface transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <Scissors className="h-3.5 w-3.5 text-slate-400" />
@@ -176,7 +193,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onRename(targetItem);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
+            className="flex min-h-9 w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-on-surface transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <Edit3 className="h-3.5 w-3.5 text-slate-400" />
@@ -185,7 +202,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             <span className="text-[10px] text-slate-500 font-mono">F2</span>
           </button>
 
-          <div className="my-1 border-t border-white/[0.06]" />
+          <div className="my-1 border-t border-outline/[0.06]" />
 
           <button
             type="button"
@@ -193,7 +210,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onProperties(targetItem);
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
+            className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-on-surface transition-colors"
           >
             <Info className="h-3.5 w-3.5 text-slate-400" />
             <span>Properties</span>
@@ -205,13 +222,13 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onDelete([targetItem]);
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-rose-500/15 text-rose-300 hover:text-rose-200 transition-colors"
+            className="flex min-h-9 w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-[color:var(--color-error)] hover:bg-rose-500/15 transition-colors"
           >
             <div className="flex items-center gap-2.5">
-              <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+              <Trash2 className="h-3.5 w-3.5 text-[color:var(--color-error)]" />
               <span>Delete</span>
             </div>
-            <span className="text-[10px] text-rose-400/60 font-mono">Del</span>
+            <span className="text-[10px] text-slate-500 font-mono">Del</span>
           </button>
         </>
       ) : (
@@ -222,7 +239,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onNewFolder();
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-teal-300 transition-colors"
           >
             <FolderPlus className="h-3.5 w-3.5 text-teal-400" />
             <span>New Folder</span>
@@ -234,7 +251,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onNewFile();
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-teal-300 transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-teal-300 transition-colors"
           >
             <FilePlus className="h-3.5 w-3.5 text-teal-400" />
             <span>New File</span>
@@ -257,7 +274,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             </button>
           )}
 
-          <div className="my-1 border-t border-white/[0.06]" />
+          <div className="my-1 border-t border-outline/[0.06]" />
 
           <button
             type="button"
@@ -265,7 +282,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onSelectAll();
               onClose();
             }}
-            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
+            className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-on-surface transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <CheckSquare className="h-3.5 w-3.5 text-slate-400" />
@@ -280,7 +297,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onRefresh();
               onClose();
             }}
-            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-white/[0.08] hover:text-white transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left hover:bg-surface-variant hover:text-on-surface transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
             <span>Refresh</span>

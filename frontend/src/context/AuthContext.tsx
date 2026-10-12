@@ -1,6 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+import axios from 'axios';
 import { User } from '../types';
 import { authService } from '../services/api';
+
+const SESSION_IDLE_TIMEOUT_MS = 12 * 60 * 60 * 1000;
+const ACTIVITY_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+const SESSION_LAST_ACTIVITY_KEY = 'sessionLastActivity';
 
 interface AuthContextType {
   token: string | null;
@@ -32,29 +43,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem(SESSION_LAST_ACTIVITY_KEY);
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  const login = useCallback((newToken: string, newUser?: User) => {
+    localStorage.setItem('token', newToken);
+    localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, String(Date.now()));
+    setToken(newToken);
+    if (newUser) {
+      localStorage.setItem('user', JSON.stringify(newUser));
+      setUser(newUser);
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     const initAuth = async () => {
       const storedToken = localStorage.getItem('token');
+      const lastActivity = Number(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY));
       if (storedToken) {
-        try {
-          // Timeout after 3.5 seconds if server is slow or disconnected
-          const authPromise = authService.getMe();
-          const timeoutPromise = new Promise<{ user: User }>((_, reject) =>
-            setTimeout(() => reject(new Error('Auth check timeout')), 3500)
-          );
-          const data = await Promise.race([authPromise, timeoutPromise]);
-          if (isMounted) {
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-          }
-        } catch (error) {
-          console.warn('Session verification fallback:', (error as Error).message);
-          if (isMounted) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setToken(null);
-            setUser(null);
+        if (
+          !Number.isFinite(lastActivity) ||
+          lastActivity <= 0 ||
+          Date.now() - lastActivity >= SESSION_IDLE_TIMEOUT_MS
+        ) {
+          logout();
+        } else {
+          try {
+            const authPromise = authService.getMe();
+            const timeoutPromise = new Promise<{ user: User }>((_, reject) =>
+              setTimeout(() => reject(new Error('Auth check timeout')), 3500)
+            );
+            const data = await Promise.race([authPromise, timeoutPromise]);
+            if (isMounted) {
+              setUser(data.user);
+              localStorage.setItem('user', JSON.stringify(data.user));
+              localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, String(Date.now()));
+            }
+          } catch (error) {
+            console.warn('Session verification failed:', (error as Error).message);
+            if (isMounted) {
+              logout();
+            }
           }
         }
       }
@@ -63,27 +98,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    initAuth();
+    void initAuth();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [logout]);
 
-  const login = (newToken: string, newUser?: User) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-    if (newUser) {
-      localStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
-    }
-  };
+  useEffect(() => {
+    const handleUnauthorized = () => logout();
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, [logout]);
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-  };
+  useEffect(() => {
+    if (!token || isLoading) return;
+
+    let lastActivity = Number(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY));
+    let lastPersistedActivity = lastActivity;
+    let idleTimer: number;
+
+    const scheduleLogout = () => {
+      window.clearTimeout(idleTimer);
+      const remaining = SESSION_IDLE_TIMEOUT_MS - (Date.now() - lastActivity);
+      if (remaining <= 0) {
+        logout();
+        return;
+      }
+      idleTimer = window.setTimeout(logout, remaining);
+    };
+
+    const handleActivity = () => {
+      lastActivity = Date.now();
+      if (lastActivity - lastPersistedActivity >= 30 * 1000) {
+        lastPersistedActivity = lastActivity;
+        localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, String(lastActivity));
+      }
+      scheduleLogout();
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'token' && !event.newValue) {
+        logout();
+      } else if (event.key === SESSION_LAST_ACTIVITY_KEY && event.newValue) {
+        const sharedLastActivity = Number(event.newValue);
+        if (Number.isFinite(sharedLastActivity)) {
+          lastActivity = sharedLastActivity;
+          lastPersistedActivity = sharedLastActivity;
+          scheduleLogout();
+        }
+      }
+    };
+
+    scheduleLogout();
+    const heartbeat = window.setInterval(() => {
+      const sharedLastActivity = Number(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY));
+      if (
+        !Number.isFinite(sharedLastActivity) ||
+        Date.now() - sharedLastActivity >= SESSION_IDLE_TIMEOUT_MS
+      ) {
+        logout();
+        return;
+      }
+
+      lastActivity = sharedLastActivity;
+      scheduleLogout();
+      void authService.recordActivity().catch((error: unknown) => {
+        if (axios.isAxiosError(error) && error.response?.status === 401) return;
+        console.error('[Auth] Session activity heartbeat failed:', error);
+      });
+    }, ACTIVITY_HEARTBEAT_INTERVAL_MS);
+
+    window.addEventListener('pointermove', handleActivity);
+    window.addEventListener('pointerdown', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.clearTimeout(idleTimer);
+      window.clearInterval(heartbeat);
+      window.removeEventListener('pointermove', handleActivity);
+      window.removeEventListener('pointerdown', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [isLoading, logout, token]);
 
   return (
     <AuthContext.Provider

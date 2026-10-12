@@ -1,19 +1,8 @@
 import React, { useState } from 'react';
 import { FileItem } from '../types';
 import { formatBytes, getFileBadge, getFileTypeMeta } from '../utils/fileUtils';
-import {
-  Download,
-  Loader2,
-  Eye,
-  Link,
-  Check,
-  Edit3,
-  Trash2,
-  Copy,
-  Scissors,
-  Info,
-} from 'lucide-react';
-import { driveService } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
+import { MoreVertical } from 'lucide-react';
 
 interface FileCardProps {
   file: FileItem;
@@ -22,16 +11,9 @@ interface FileCardProps {
   selectedFileIds?: Set<string>;
   onToggleSelect?: (fileId: string) => void;
   onOpenFolder: (folderId: string, folderName: string) => void;
-  onDownloadFile: (fileId: string, filename: string) => Promise<void>;
   onPreviewFile: (file: FileItem) => void;
-  onRename?: (file: FileItem) => void;
-  onDelete?: (file: FileItem) => void;
-  onCopy?: (file: FileItem) => void;
-  onCut?: (file: FileItem) => void;
-  onProperties?: (file: FileItem) => void;
   onContextMenu?: (e: React.MouseEvent, file: FileItem) => void;
   onDropOnFolder?: (targetFolderId: string, itemIds: string[]) => void;
-  onToast?: (message: string, type: 'success' | 'info' | 'error') => void;
 }
 
 export const FileCard: React.FC<FileCardProps> = ({
@@ -41,19 +23,11 @@ export const FileCard: React.FC<FileCardProps> = ({
   selectedFileIds,
   onToggleSelect,
   onOpenFolder,
-  onDownloadFile,
   onPreviewFile,
-  onRename,
-  onDelete,
-  onCopy,
-  onCut,
-  onProperties,
   onContextMenu,
   onDropOnFolder,
-  onToast,
 }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
+  const { mode } = useTheme();
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleClick = () => {
@@ -62,37 +36,6 @@ export const FileCard: React.FC<FileCardProps> = ({
     } else {
       onPreviewFile(file);
     }
-  };
-
-  const handleCheckboxClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onToggleSelect) {
-      onToggleSelect(file.driveId);
-    }
-  };
-
-  const handleDownloadClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      setIsDownloading(true);
-      await onDownloadFile(file.driveId, file.name);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const handlePreviewClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onPreviewFile(file);
-  };
-
-  const handleCopyLinkClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const url = window.location.origin + driveService.getViewUrl(file.driveId);
-    navigator.clipboard.writeText(url);
-    setIsCopied(true);
-    if (onToast) onToast(`Copied stream link for "${file.name}"`, 'success');
-    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -142,7 +85,7 @@ export const FileCard: React.FC<FileCardProps> = ({
     }
   };
 
-  const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder);
+  const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder, mode);
 
   return (
     <div
@@ -151,144 +94,61 @@ export const FileCard: React.FC<FileCardProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={handleClick}
       onContextMenu={handleContextMenu}
-      className={`group relative flex flex-col justify-between rounded-2xl border p-4 transition-all duration-200 cursor-pointer ${
+      data-selected={isSelected}
+      data-drag-over={isDragOver}
+      className={`group relative h-36 overflow-hidden rounded-lg border p-4 transition-colors duration-150 glass-card ${
         isDragOver
-          ? 'border-teal-400 bg-teal-500/20 ring-2 ring-teal-400'
+          ? 'border-primary bg-primary-container/40 ring-1 ring-primary'
           : isSelected
-          ? 'border-teal-500/60 bg-teal-500/[0.08] shadow-lg shadow-teal-950/40 ring-1 ring-teal-500/40'
-          : 'border-white/[0.06] bg-[#0d121f]/70 hover:border-teal-500/30 hover:bg-[#12192b]/80 hover:shadow-xl hover:-translate-y-1'
+          ? 'border-primary/70 bg-primary-container/45 ring-1 ring-primary/50'
+          : file.isFolder
+          ? 'border-amber-500/25 bg-amber-500/[0.035] hover:border-amber-500/40 hover:bg-amber-500/[0.06]'
+          : 'border-outline/[0.06] bg-surface/70 hover:border-outline/[0.12] hover:bg-surface/85'
       } ${isCut ? 'opacity-40 border-dashed border-teal-500/40' : ''}`}
     >
-      {/* Card Header: Checkbox & Quick Actions */}
+      <button
+        type="button"
+        onClick={handleClick}
+        aria-label={`${file.isFolder ? 'Open folder' : 'Preview file'} ${file.name}`}
+        className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--color-primary)]"
+      />
+      <div className="relative z-10 flex h-full flex-col justify-between pointer-events-none">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {onToggleSelect && (
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => {}}
-              onClick={handleCheckboxClick}
-              className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 text-teal-400 focus:ring-teal-400/30 cursor-pointer transition-transform active:scale-90"
-            />
+            <div className="flex min-h-6 min-w-6 items-center justify-center">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggleSelect?.(file.driveId)}
+                onClick={(event) => event.stopPropagation()}
+                aria-label={`Select ${file.name}`}
+                className="pointer-events-auto h-4 w-4 cursor-pointer rounded border-outline/30 bg-surface-variant text-teal-400 focus:ring-teal-400/30 transition-transform active:scale-95"
+              />
+            </div>
           )}
-          {getFileBadge(file.mimeType, file.isFolder, 'h-5 w-5', 'p-2.5')}
+          {getFileBadge(file.mimeType, file.isFolder, 'h-5 w-5', 'p-2.5', mode)}
         </div>
 
-        {/* Hover action toolbar */}
-        <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-          {!file.isFolder && (
-            <>
-              <button
-                type="button"
-                onClick={handleCopyLinkClick}
-                title="Copy stream link"
-                className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.1] hover:text-teal-300 transition-colors"
-              >
-                {isCopied ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Link className="h-3.5 w-3.5" />}
-              </button>
-              <button
-                type="button"
-                onClick={handlePreviewClick}
-                title="Preview"
-                className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.1] hover:text-teal-300 transition-colors"
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadClick}
-                disabled={isDownloading}
-                title="Download"
-                className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.1] hover:text-teal-300 transition-colors disabled:opacity-50"
-              >
-                {isDownloading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-400" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </>
-          )}
-
-          {onCopy && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCopy(file);
-              }}
-              title="Copy"
-              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.1] hover:text-teal-300 transition-colors"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {onCut && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCut(file);
-              }}
-              title="Cut"
-              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.1] hover:text-teal-300 transition-colors"
-            >
-              <Scissors className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {onRename && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRename(file);
-              }}
-              title="Rename"
-              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.1] hover:text-teal-300 transition-colors"
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {onProperties && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onProperties(file);
-              }}
-              title="Properties"
-              className="rounded-lg p-1 text-slate-400 hover:bg-white/[0.1] hover:text-teal-300 transition-colors"
-            >
-              <Info className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {onDelete && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(file);
-              }}
-              title="Delete"
-              className="rounded-lg p-1 text-rose-400/80 hover:bg-rose-500/20 hover:text-rose-300 transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onContextMenu?.(e, file);
+          }}
+          aria-label={`More actions for ${file.name}`}
+          className="glass-button pointer-events-auto flex min-h-8 min-w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-surface-variant hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors"
+        >
+          <MoreVertical className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
 
       {/* Card Content & Metadata */}
-      <div className="mt-4">
+      <div className="mt-4 min-w-0">
         <h4
-          className="text-xs font-semibold text-slate-200 truncate group-hover:text-teal-300 transition-colors"
-          title={file.name}
+          aria-hidden="true"
+          className="truncate text-sm font-semibold text-slate-200 transition-colors group-hover:text-teal-300"
         >
           {file.name}
         </h4>
@@ -302,6 +162,7 @@ export const FileCard: React.FC<FileCardProps> = ({
             {typeMeta.label}
           </span>
         </div>
+      </div>
       </div>
     </div>
   );
