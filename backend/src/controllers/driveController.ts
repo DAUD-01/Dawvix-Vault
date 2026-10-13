@@ -304,6 +304,9 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
     }
 
     const files = await FileMetadata.find(filter).sort(sortObj).lean();
+    const uniqueFiles = Array.from(
+      new Map(files.map((file) => [file.driveId, file])).values(),
+    );
 
     let currentFolder = null;
     if (folderId !== rootFolderId && folderId !== "root") {
@@ -325,8 +328,8 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
           }
         : null,
       serviceAccountEmail: creds?.client_email || null,
-      count: files.length,
-      files: files.map((file) => ({
+      count: uniqueFiles.length,
+      files: uniqueFiles.map((file) => ({
         id: file.driveId,
         driveId: file.driveId,
         name: file.name,

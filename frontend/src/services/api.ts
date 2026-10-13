@@ -3,12 +3,36 @@ import { FilesResponse, User, VaultStats, SortBy, SortOrder } from '../types';
 
 export const API_BASE_URL = '/api';
 
+const pendingGetRequests = new Map<string, Promise<unknown>>();
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+const getData = async <T>(
+  url: string,
+  params?: Record<string, string>
+): Promise<T> => {
+  const config = { params };
+  const key = `${api.getUri({ url, ...config })}:${localStorage.getItem('token') || ''}`;
+  let request = pendingGetRequests.get(key) as Promise<T> | undefined;
+
+  if (!request) {
+    request = api.get<T>(url, config).then((response) => response.data);
+    pendingGetRequests.set(key, request);
+  }
+
+  try {
+    return await request;
+  } finally {
+    if (pendingGetRequests.get(key) === request) {
+      pendingGetRequests.delete(key);
+    }
+  }
+};
 
 // Intercept requests to attach Authorization header
 api.interceptors.request.use((config) => {
@@ -37,10 +61,7 @@ export const authService = {
     return response.data;
   },
 
-  getMe: async (): Promise<{ user: User }> => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
+  getMe: (): Promise<{ user: User }> => getData('/auth/me'),
 };
 
 export interface GetFilesOptions {
@@ -53,15 +74,13 @@ export interface GetFilesOptions {
 }
 
 export const driveService = {
-  getStats: async (): Promise<{ success: boolean; stats: VaultStats }> => {
-    const response = await api.get('/drive/stats');
-    return response.data;
-  },
+  getStats: (): Promise<{ success: boolean; stats: VaultStats }> =>
+    getData('/drive/stats'),
 
   getFiles: async (options?: GetFilesOptions | string): Promise<FilesResponse> => {
-    let params: any = {};
+    const params: Record<string, string> = {};
     if (typeof options === 'string') {
-      params = options ? { folderId: options } : {};
+      if (options) params.folderId = options;
     } else if (options) {
       if (options.folderId) params.folderId = options.folderId;
       if (options.all) params.all = 'true';
@@ -71,8 +90,7 @@ export const driveService = {
       if (options.refresh) params.refresh = 'true';
     }
 
-    const response = await api.get('/drive/files', { params });
-    return response.data;
+    return getData('/drive/files', params);
   },
 
   syncDrive: async (
