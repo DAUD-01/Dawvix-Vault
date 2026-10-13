@@ -32,6 +32,71 @@ import {
   Terminal,
 } from "lucide-react";
 
+const CODE_LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  c: "c",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  h: "cpp",
+  hh: "cpp",
+  hpp: "cpp",
+  hxx: "cpp",
+  cs: "csharp",
+  css: "css",
+  dart: "dart",
+  diff: "diff",
+  dockerfile: "docker",
+  go: "go",
+  html: "html",
+  ini: "ini",
+  java: "java",
+  json: "json",
+  js: "javascript",
+  jsx: "jsx",
+  kt: "kotlin",
+  lua: "lua",
+  makefile: "makefile",
+  m: "objectivec",
+  mm: "objectivec",
+  php: "php",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  scala: "scala",
+  scss: "scss",
+  sh: "bash",
+  sql: "sql",
+  swift: "swift",
+  ts: "typescript",
+  tsx: "tsx",
+  toml: "toml",
+  vue: "markup",
+  xml: "xml",
+  yaml: "yaml",
+  yml: "yaml",
+};
+
+const TEXT_FILE_EXTENSIONS = new Set([
+  ...Object.keys(CODE_LANGUAGE_BY_EXTENSION),
+  "txt",
+  "md",
+  "markdown",
+  "csv",
+  "log",
+  "env",
+]);
+
+const getFileExtension = (filename: string): string =>
+  filename.includes(".")
+    ? filename.split(".").pop()?.toLowerCase() || ""
+    : filename.toLowerCase();
+
+const getCodeLanguage = (filename: string): string | undefined =>
+  CODE_LANGUAGE_BY_EXTENSION[getFileExtension(filename)];
+
+const isPreviewableTextFile = (filename: string): boolean =>
+  TEXT_FILE_EXTENSIONS.has(getFileExtension(filename));
+
 // --- NEW: Dedicated Component for Premium Code Blocks ---
 const CodeBlock = ({
   language,
@@ -164,9 +229,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       file.mimeType.includes("javascript") ||
       file.mimeType.includes("typescript") ||
       file.mimeType.includes("csv") ||
-      /\.(txt|md|json|ts|tsx|js|jsx|py|html|css|scss|sh|yaml|yml|xml|csv|log|env|sql)$/i.test(
-        file.name,
-      );
+      isPreviewableTextFile(file.name);
 
     if (isTextBased) {
       setIsLoadingContent(true);
@@ -208,9 +271,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     mime.includes("javascript") ||
     mime.includes("typescript") ||
     mime.includes("csv") ||
-    /\.(txt|json|ts|tsx|js|jsx|py|html|css|scss|sh|yaml|yml|xml|csv|log|env|sql)$/i.test(
-      name,
-    );
+    isPreviewableTextFile(name);
+  const codeLanguage = getCodeLanguage(name);
 
   const handleDownload = async () => {
     try {
@@ -557,11 +619,38 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                       </div>
                     ))}
                   </div>
-                  <pre
-                    className={`flex-1 p-4 text-slate-200 leading-relaxed font-mono selection:bg-teal-500 selection:text-white ${isWordWrap ? "whitespace-pre-wrap" : "whitespace-pre"}`}
-                  >
-                    {textContent}
-                  </pre>
+                  <div className="min-w-0 flex-1">
+                    {codeLanguage ? (
+                      <SyntaxHighlighter
+                        style={vscDarkPlus as any}
+                        language={codeLanguage}
+                        showLineNumbers
+                        wrapLongLines={isWordWrap}
+                        customStyle={{
+                          minHeight: "100%",
+                          margin: 0,
+                          padding: "1rem",
+                          background: "transparent",
+                          fontSize: "0.75rem",
+                          lineHeight: "1.625",
+                        }}
+                        lineNumberStyle={{
+                          minWidth: "2.5em",
+                          paddingRight: "1em",
+                          color: "#64748b",
+                          userSelect: "none",
+                        }}
+                      >
+                        {textContent || ""}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <pre
+                        className={`p-4 text-slate-200 leading-relaxed font-mono selection:bg-teal-500 selection:text-white ${isWordWrap ? "whitespace-pre-wrap" : "whitespace-pre"}`}
+                      >
+                        {textContent}
+                      </pre>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

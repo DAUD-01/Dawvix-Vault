@@ -995,6 +995,29 @@ export const getMimeTypeFromName = (filename: string): string => {
     case "ts":
     case "tsx":
       return "application/typescript";
+    case "c":
+    case "h":
+    case "cc":
+    case "cpp":
+    case "cxx":
+    case "hh":
+    case "hpp":
+    case "hxx":
+    case "cs":
+    case "dart":
+    case "go":
+    case "java":
+    case "kt":
+    case "lua":
+    case "m":
+    case "mm":
+    case "php":
+    case "py":
+    case "rb":
+    case "rs":
+    case "scala":
+    case "swift":
+      return "text/plain";
     case "jsx":
       return "text/jsx";
     case "html":
