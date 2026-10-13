@@ -6,6 +6,10 @@ import {
   getGoogleCredentials,
 } from "../config/googleDrive.js";
 import { FileMetadata } from "../models/FileMetadata.js";
+import {
+  findSyncthingArtifactIds,
+  isSyncthingArtifactName,
+} from "../utils/syncthingArtifacts.js";
 
 /**
  * Helper to retrieve effective root folder ID from environment or fallback to 'root'
@@ -22,7 +26,9 @@ export const getVaultStats = async (
   res: Response,
 ): Promise<void> => {
   try {
+    const excludedIds = await findSyncthingArtifactIds();
     const [stats] = await FileMetadata.aggregate([
+      { $match: { driveId: { $nin: excludedIds } } },
       {
         $group: {
           _id: null,
@@ -88,11 +94,17 @@ export const performDriveSync = async (
   let syncedCount = 0;
   let deletedCount = 0;
 
+  const existingArtifactIds = await findSyncthingArtifactIds();
+  if (existingArtifactIds.length > 0) {
+    const purgeResult = await FileMetadata.deleteMany({
+      driveId: { $in: existingArtifactIds },
+    });
+    deletedCount += purgeResult.deletedCount || 0;
+  }
+
   if (targetFolderId === "root") {
     let pageToken: string | undefined = undefined;
     const allItems: any[] = [];
-    const itemMap = new Map<string, any>();
-    const discoveredIds = new Set<string>();
 
     do {
       const response: any = await drive.files.list({
@@ -109,14 +121,35 @@ export const performDriveSync = async (
       for (const file of files) {
         if (!file.id || !file.name) continue;
         allItems.push(file);
-        itemMap.set(file.id, file);
-        discoveredIds.add(file.id);
       }
 
       pageToken = response.data.nextPageToken || undefined;
     } while (pageToken);
 
-    for (const item of allItems) {
+    const excludedIds = new Set<string>(
+      allItems
+        .filter((item) => isSyncthingArtifactName(item.name))
+        .map((item) => item.id),
+    );
+    let foundExcludedParent = true;
+    while (foundExcludedParent) {
+      foundExcludedParent = false;
+      for (const item of allItems) {
+        if (
+          !excludedIds.has(item.id) &&
+          item.parents?.some((parentId: string) => excludedIds.has(parentId))
+        ) {
+          excludedIds.add(item.id);
+          foundExcludedParent = true;
+        }
+      }
+    }
+
+    const visibleItems = allItems.filter((item) => !excludedIds.has(item.id));
+    const itemMap = new Map(visibleItems.map((item) => [item.id, item]));
+    const discoveredIds = new Set(visibleItems.map((item) => item.id));
+
+    for (const item of visibleItems) {
       const isFolder = item.mimeType === "application/vnd.google-apps.folder";
       let itemParents = item.parents || [];
 
@@ -205,6 +238,7 @@ export const performDriveSync = async (
 
         for (const item of items) {
           if (!item.id || !item.name) continue;
+          if (isSyncthingArtifactName(item.name)) continue;
 
           discoveredIds.add(item.id);
           const isFolder =
@@ -302,6 +336,9 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
     } else {
       sortObj.name = order;
     }
+
+    const excludedIds = await findSyncthingArtifactIds();
+    filter.driveId = { $nin: excludedIds };
 
     const files = await FileMetadata.find(filter).sort(sortObj).lean();
     const uniqueFiles = Array.from(
@@ -1084,6 +1121,7 @@ const copyItemRecursively = async (
   const createdIds: string[] = [];
   const sourceMeta = await FileMetadata.findOne({ driveId: fileId }).lean();
   if (!sourceMeta) return createdIds;
+  if (isSyncthingArtifactName(sourceMeta.name)) return createdIds;
 
   // Determine duplicate naming
   const existing = await FileMetadata.findOne({
