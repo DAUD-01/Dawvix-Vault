@@ -63,6 +63,7 @@ university-vault/
 │   │   │   └── authMiddleware.ts   # Bearer & Query JWT verification
 │   │   ├── models/
 │   │   │   ├── User.ts         # User authentication model
+│   │   │   ├── LoginSession.ts # Sliding 12-hour idle sessions
 │   │   │   └── FileMetadata.ts # Cached Drive file metadata schema
 │   │   ├── routes/
 │   │   │   ├── authRoutes.ts   # /api/auth/*
@@ -155,6 +156,7 @@ npm run dev:frontend
 
 - **HTTP 206 Partial Content**: Full support for HTTP `Range` headers, enabling video/audio scrubbing and seeking in preview players, along with resumable multi-thread downloads.
 - **Protected API Endpoints**: All `/api/drive/*` routes validate a signed JWT Bearer token in the `Authorization` header.
+- **Idle Session Expiry**: Login sessions expire after 12 hours without user activity and extend while the user remains active.
 - **Direct Download Stream Support**: The download endpoint `/api/drive/download/:fileId` supports query token authentication (`?token=<jwt>`), enabling direct browser downloads with full signature verification.
 - **Google Workspace Export**: Google Docs, Sheets, and Slides are automatically converted to PDF format via `drive.files.export` before streaming.
 - **Network Bypassing**: Client devices only ever communicate with your backend server URL. Google Drive domains and IP ranges never touch the client network.

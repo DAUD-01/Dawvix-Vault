@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
+import { LoginSession } from '../models/LoginSession.js';
 import { AuthRequest } from '../middleware/authMiddleware.js';
 
 export const login = async (req: Request, res: Response): Promise<void> => {
@@ -38,13 +40,19 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const secret = process.env.JWT_SECRET || 'super_secure_vault_jwt_secret_change_me_in_production';
+    const sessionId = randomUUID();
+    await LoginSession.create({
+      _id: sessionId,
+      userId: user._id.toString(),
+      lastActivity: new Date(),
+    });
     const token = jwt.sign(
       {
         userId: user._id.toString(),
         username: user.username,
+        sessionId,
       },
-      secret,
-      { expiresIn: '7d' }
+      secret
     );
 
     res.json({
@@ -62,6 +70,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       message: 'An internal server error occurred during login.',
     });
   }
+};
+
+export const recordActivity = (_req: AuthRequest, res: Response): void => {
+  res.json({ success: true });
 };
 
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {

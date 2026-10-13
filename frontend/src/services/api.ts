@@ -50,6 +50,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('sessionLastActivity');
+      window.dispatchEvent(new Event('auth:unauthorized'));
     }
     return Promise.reject(error);
   }
@@ -62,6 +64,10 @@ export const authService = {
   },
 
   getMe: (): Promise<{ user: User }> => getData('/auth/me'),
+
+  recordActivity: async (): Promise<void> => {
+    await api.post('/auth/activity');
+  },
 };
 
 export interface GetFilesOptions {
