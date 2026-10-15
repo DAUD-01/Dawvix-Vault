@@ -15,7 +15,6 @@ import {
   themeFromSourceColor,
 } from "@material/material-color-utilities";
 import {
-  Shield,
   RefreshCw,
   LogOut,
   ChevronDown,
@@ -212,14 +211,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Link
               to="/dashboard?folder=root"
               aria-label="Go to dashboard"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--color-border)] bg-surface-variant/40 text-[color:var(--color-accent)] transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+              className="group inline-flex shrink-0 items-baseline gap-1.5 rounded-md py-1 transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
             >
-              <Shield className="h-8 w-8" aria-hidden="true" />
+              <span className="text-[17px] font-bold leading-none tracking-[-0.045em] text-[color:var(--color-text-primary)]">
+                Dawvix
+              </span>
+              <span className="text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-[color:var(--color-accent)]">
+                Vault
+              </span>
             </Link>
-
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
-              Dawvix Vault
-            </span>
           </div>
 
           {showBreadcrumbs && (
