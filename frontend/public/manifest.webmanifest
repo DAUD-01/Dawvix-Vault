@@ -1,0 +1,20 @@
+{
+  "id": "/dashboard",
+  "name": "Dawvix Vault",
+  "short_name": "Dawvix",
+  "description": "A secure workspace for storing and managing your files.",
+  "start_url": "/dashboard?folder=root",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101311",
+  "theme_color": "#101311",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
