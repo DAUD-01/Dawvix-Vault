@@ -169,9 +169,6 @@ export const Dashboard: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [vaultStats, setVaultStats] = useState<VaultStats | null>(null);
-  const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
-  const [isEmailCopied, setIsEmailCopied] = useState(false);
-  const [showEmailBanner, setShowEmailBanner] = useState(true);
   // Multi-selection state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
 
@@ -330,7 +327,6 @@ export const Dashboard: React.FC = () => {
       const result = await driveService.getStats();
       if (result.success) {
         setVaultStats(result.stats);
-        setServiceAccountEmail(result.stats.serviceAccountEmail);
       }
     } catch (err) {
       console.error('Unable to load vault stats.', err);
@@ -357,7 +353,6 @@ export const Dashboard: React.FC = () => {
       // to one canonical item per Drive id, even if an upstream response is stale.
       if (requestId !== latestFilesRequestRef.current) return;
 
-      setServiceAccountEmail(data.serviceAccountEmail ?? null);
       const uniqueFiles = (data.files || []).reduce<Map<string, FileItem>>((unique, file) => {
         const key = getCanonicalFileKey(file);
         unique.set(key, getNewestFile(unique.get(key), file));
@@ -445,7 +440,6 @@ export const Dashboard: React.FC = () => {
     try {
       const data = await driveService.syncDrive(folderId);
       const msg = data.message || `Successfully synced items from Google Drive.`;
-      setServiceAccountEmail(data.serviceAccountEmail ?? null);
       setSyncMessage(msg);
       addToast(msg, 'success');
       setSyncStatus('pending');
@@ -661,18 +655,6 @@ export const Dashboard: React.FC = () => {
       addToast(`Copied stream link for "${file.name}"`, 'success');
     } catch {
       addToast('Unable to copy the file link. Check clipboard permissions and try again.', 'error');
-    }
-  };
-
-  const handleCopyEmail = async () => {
-    if (!serviceAccountEmail) return;
-    try {
-      await navigator.clipboard.writeText(serviceAccountEmail);
-      setIsEmailCopied(true);
-      addToast('Service account email copied to clipboard!', 'success');
-      setTimeout(() => setIsEmailCopied(false), 2500);
-    } catch {
-      addToast('Unable to copy the service account email. Check clipboard permissions and try again.', 'error');
     }
   };
 
@@ -1088,51 +1070,6 @@ export const Dashboard: React.FC = () => {
         style={{ paddingInline: 'var(--gutter)', paddingTop: 'var(--space-6)' }}
         onContextMenu={(e) => handleOpenContextMenu(e, null)}
       >
-        {/* Service Account integration helper hint */}
-        {isAdmin && serviceAccountEmail && showEmailBanner && (
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-2xl border border-teal-500/20 bg-teal-500/[0.04] p-3 text-xs text-slate-300 backdrop-blur-sm animate-in fade-in">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-1 rounded-lg bg-teal-500/10 text-teal-400 shrink-0">
-                <Info className="h-3.5 w-3.5" />
-              </div>
-              <span className="truncate">
-                Sync with Google Drive: Share folders with{' '}
-                <code className="text-teal-300 font-mono bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/[0.08]">
-                  {serviceAccountEmail}
-                </code>{' '}
-                as <b>Editor</b> or <b>Viewer</b>.
-              </span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleCopyEmail}
-                className="inline-flex items-center gap-1 rounded-xl bg-teal-500/15 px-2.5 py-1 text-teal-300 border border-teal-500/25 hover:bg-teal-500/25 transition-colors"
-              >
-                {isEmailCopied ? (
-                  <>
-                    <Check className="h-3 w-3 text-teal-400" />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" />
-                    <span>Copy Email</span>
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEmailBanner(false)}
-                className="p-1 text-slate-500 hover:text-slate-300 transition-colors"
-                title="Dismiss hint"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Error notification banner */}
         {errorMessage && (
           <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-[color:var(--color-error)] ">
