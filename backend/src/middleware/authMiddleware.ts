@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { LoginSession, SESSION_IDLE_TIMEOUT_MS } from '../models/LoginSession.js';
+import { User, UserRole } from '../models/User.js';
 
 export interface AuthRequest extends Request {
   user?: {
     userId: string;
     username: string;
+    role: UserRole;
   };
 }
 
@@ -84,11 +86,31 @@ export const authMiddleware = (
         return;
       }
 
-      req.user = {
-        userId,
-        username,
-      };
-      next();
+      void User.findById(userId)
+        .select('username role')
+        .then((user) => {
+          if (!user) {
+            res.status(401).json({
+              success: false,
+              message: 'User account no longer exists. Please log in again.',
+            });
+            return;
+          }
+
+          req.user = {
+            userId,
+            username: user.username || username,
+            role: user.role,
+          };
+          next();
+        })
+        .catch((error: unknown) => {
+          console.error('[Auth] User authorization lookup failed:', error);
+          res.status(500).json({
+            success: false,
+            message: 'Unable to verify the user account.',
+          });
+        });
     })
     .catch((error: unknown) => {
       console.error('[Auth] Session activity update failed:', error);
@@ -97,4 +119,20 @@ export const authMiddleware = (
         message: 'Unable to verify the authorization session.',
       });
     });
+};
+
+export const requireAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (req.user?.role !== 'admin') {
+    res.status(403).json({
+      success: false,
+      message: 'Administrator access is required to modify vault files.',
+    });
+    return;
+  }
+
+  next();
 };

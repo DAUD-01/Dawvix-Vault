@@ -121,7 +121,10 @@ GOOGLE_DRIVE_ROOT_FOLDER_ID=root
 GOOGLE_CREDENTIALS_JSON=
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
+VIEWER_PASSWORD=choose-a-strong-viewer-password
 ```
+
+The backend provisions a `viewer` account when `VIEWER_PASSWORD` is set. This account can browse, preview, and download files but cannot sync, upload, create, rename, move, copy, or delete files. Those operations are restricted to accounts with the `admin` role on the server; viewer controls are also hidden in the dashboard.
 
 ### 3. Setting Up Google Cloud Service Account
 1. Open [Google Cloud Console](https://console.cloud.google.com/).
@@ -149,6 +152,10 @@ npm run dev:frontend
 #### Default Admin Credentials:
 - **Username**: `admin`
 - **Password**: `admin123`
+
+#### Read-only Viewer:
+- **Username**: `viewer`
+- **Password**: Set by `VIEWER_PASSWORD` in `backend/.env`.
 
 ---
 

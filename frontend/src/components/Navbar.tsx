@@ -16,6 +16,7 @@ import {
 
 interface NavbarProps {
   onSync: () => Promise<void>;
+  canSync: boolean;
   isSyncing: boolean;
   lastSyncedMessage?: string | null;
   stats?: VaultStats | null;
@@ -23,6 +24,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   onSync,
+  canSync,
   isSyncing,
   lastSyncedMessage,
   stats,
@@ -105,18 +107,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Sync Button */}
-          <button
-            type="button"
-            onClick={onSync}
-            disabled={isSyncing}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-400 px-3 py-1.5 text-xs font-medium text-slate-950 shadow-sm shadow-teal-500/20 transition-all hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-            title="Sync items with Google Drive"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
-            />
-            <span className="font-semibold">{isSyncing ? "Syncing..." : "Sync"}</span>
-          </button>
+          {canSync && (
+            <button
+              type="button"
+              onClick={onSync}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-400 px-3 py-1.5 text-xs font-medium text-slate-950 shadow-sm shadow-teal-500/20 transition-all hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Sync items with Google Drive"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
+              />
+              <span className="font-semibold">{isSyncing ? "Syncing..." : "Sync"}</span>
+            </button>
+          )}
 
           {/* Profile & Dropdown Menu */}
           <div
@@ -153,6 +157,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <p className="truncate text-xs font-semibold text-slate-200 mt-0.5">
                     {user?.username || "Authenticated User"}
                   </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">
+                    {user?.role === "admin" ? "Administrator" : "Read-only"}
+                  </p>
                 </div>
                 <div className="p-1">
                   <button
@@ -174,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Sync Status Banner */}
-      {lastSyncedMessage && !bannerDismissed && (
+      {canSync && lastSyncedMessage && !bannerDismissed && (
         <div className="flex items-center justify-between border-t border-teal-500/20 bg-teal-950/40 px-4 py-1.5 text-xs text-teal-300">
           <div className="mx-auto flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-teal-400" />

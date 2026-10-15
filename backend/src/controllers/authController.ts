@@ -50,6 +50,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       {
         userId: user._id.toString(),
         username: user.username,
+        role: user.role,
         sessionId,
       },
       secret
@@ -59,8 +60,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user._id.toString(),
         username: user.username,
+        role: user.role,
       },
     });
   } catch (error) {
@@ -88,6 +90,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
       user: {
         id: req.user.userId,
         username: req.user.username,
+        role: req.user.role,
       },
     });
   } catch (error) {
@@ -105,9 +108,14 @@ export const ensureAdminAccount = async (): Promise<void> => {
     const adminUsername = (process.env.ADMIN_USERNAME || 'dawood').trim().toLowerCase();
     const adminPassword = process.env.ADMIN_PASSWORD || 'dawood8822';
 
+    if (adminUsername === 'viewer') {
+      console.error('[Auth] ADMIN_USERNAME cannot be "viewer"; the viewer role is reserved.');
+      return;
+    }
+
     const accountsToEnsure = [
-      { username: adminUsername, password: adminPassword },
-      { username: 'admin', password: 'admin123' },
+      { username: adminUsername, password: adminPassword, role: 'admin' as const },
+      { username: 'admin', password: 'admin123', role: 'admin' as const },
     ];
 
     for (const acc of accountsToEnsure) {
@@ -119,21 +127,47 @@ export const ensureAdminAccount = async (): Promise<void> => {
         await User.create({
           username: acc.username,
           passwordHash,
+          role: acc.role,
         });
 
         console.log(`[Auth] Account created successfully: "${acc.username}"`);
       } else {
+        if (existing.role !== acc.role) {
+          existing.role = acc.role;
+        }
         // Ensure password matches in case env changed
         const isMatch = await existing.comparePassword(acc.password);
         if (!isMatch) {
           const salt = await bcrypt.genSalt(10);
           existing.passwordHash = await bcrypt.hash(acc.password, salt);
-          await existing.save();
           console.log(`[Auth] Updated password for account: "${acc.username}"`);
         }
+        await existing.save();
       }
     }
+
+    const viewerPassword = process.env.VIEWER_PASSWORD;
+    if (viewerPassword) {
+      const viewer = await User.findOne({ username: 'viewer' });
+      if (!viewer) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(viewerPassword, salt);
+        await User.create({ username: 'viewer', passwordHash, role: 'viewer' });
+        console.log('[Auth] Read-only viewer account created.');
+      } else {
+        const isMatch = await viewer.comparePassword(viewerPassword);
+        if (viewer.role !== 'viewer' || !isMatch) {
+          const salt = await bcrypt.genSalt(10);
+          viewer.passwordHash = await bcrypt.hash(viewerPassword, salt);
+          viewer.role = 'viewer';
+          await viewer.save();
+          console.log('[Auth] Read-only viewer account updated.');
+        }
+      }
+    } else {
+      console.warn('[Auth] VIEWER_PASSWORD is not configured; viewer account was not provisioned.');
+    }
   } catch (error) {
-    console.error('[Auth] Could not ensure admin accounts:', (error as Error).message);
+    console.error('[Auth] Could not ensure accounts:', (error as Error).message);
   }
 };

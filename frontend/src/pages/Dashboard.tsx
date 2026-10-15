@@ -12,6 +12,7 @@ import { RenameModal } from '../components/RenameModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { CreateFileModal } from '../components/CreateFileModal';
 import { FilePropertiesModal } from '../components/FilePropertiesModal';
+import { useAuth } from '../context/AuthContext';
 import { driveService } from '../services/api';
 import {
   FileItem,
@@ -48,6 +49,8 @@ import {
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const initialFolder = searchParams.get('folder') || 'root';
 
@@ -571,7 +574,7 @@ export const Dashboard: React.FC = () => {
       }
 
       if (isCtrlOrCmd && e.key.toLowerCase() === 'c') {
-        if (selectedItems.length > 0) {
+        if (isAdmin && selectedItems.length > 0) {
           e.preventDefault();
           handleCopy(selectedItems);
         }
@@ -579,7 +582,7 @@ export const Dashboard: React.FC = () => {
       }
 
       if (isCtrlOrCmd && e.key.toLowerCase() === 'x') {
-        if (selectedItems.length > 0) {
+        if (isAdmin && selectedItems.length > 0) {
           e.preventDefault();
           handleCut(selectedItems);
         }
@@ -587,7 +590,7 @@ export const Dashboard: React.FC = () => {
       }
 
       if (isCtrlOrCmd && e.key.toLowerCase() === 'v') {
-        if (clipboard && clipboard.items.length > 0) {
+        if (isAdmin && clipboard && clipboard.items.length > 0) {
           e.preventDefault();
           handlePaste();
         }
@@ -595,7 +598,7 @@ export const Dashboard: React.FC = () => {
       }
 
       if (e.key === 'F2') {
-        if (selectedItems.length === 1) {
+        if (isAdmin && selectedItems.length === 1) {
           e.preventDefault();
           setRenameModal({ isOpen: true, item: selectedItems[0] });
         }
@@ -603,7 +606,7 @@ export const Dashboard: React.FC = () => {
       }
 
       if (e.key === 'Delete') {
-        if (selectedItems.length > 0) {
+        if (isAdmin && selectedItems.length > 0) {
           e.preventDefault();
           setDeleteModal({ isOpen: true, items: selectedItems });
         }
@@ -613,7 +616,7 @@ export const Dashboard: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [contextMenu, selectedFileIds, selectedItems, clipboard, currentFolderId, filteredFiles]);
+  }, [contextMenu, selectedFileIds, selectedItems, clipboard, currentFolderId, filteredFiles, isAdmin]);
 
   return (
     <div
@@ -625,6 +628,7 @@ export const Dashboard: React.FC = () => {
       {/* Top Navbar */}
       <Navbar
         onSync={() => handleSyncDrive()}
+        canSync={isAdmin}
         isSyncing={isSyncing}
         lastSyncedMessage={syncMessage}
         stats={vaultStats}
@@ -671,6 +675,7 @@ export const Dashboard: React.FC = () => {
           y={contextMenu.y}
           targetItem={contextMenu.targetItem}
           clipboard={clipboard}
+          canEdit={isAdmin}
           onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))}
           onOpenItem={(item) => handleOpenFolder(item.driveId, item.name)}
           onPreviewItem={(item) => setPreviewFile(item)}
@@ -699,25 +704,31 @@ export const Dashboard: React.FC = () => {
         />
       )}
 
-      <RenameModal
-        isOpen={renameModal.isOpen}
-        item={renameModal.item}
-        onClose={() => setRenameModal({ isOpen: false, item: null })}
-        onRename={handleRename}
-      />
+      {isAdmin && (
+        <RenameModal
+          isOpen={renameModal.isOpen}
+          item={renameModal.item}
+          onClose={() => setRenameModal({ isOpen: false, item: null })}
+          onRename={handleRename}
+        />
+      )}
 
-      <DeleteConfirmModal
-        isOpen={deleteModal.isOpen}
-        items={deleteModal.items}
-        onClose={() => setDeleteModal({ isOpen: false, items: [] })}
-        onConfirm={handleConfirmDelete}
-      />
+      {isAdmin && (
+        <DeleteConfirmModal
+          isOpen={deleteModal.isOpen}
+          items={deleteModal.items}
+          onClose={() => setDeleteModal({ isOpen: false, items: [] })}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
 
-      <CreateFileModal
-        isOpen={isCreateFileModalOpen}
-        onClose={() => setIsCreateFileModalOpen(false)}
-        onCreateFile={handleCreateFile}
-      />
+      {isAdmin && (
+        <CreateFileModal
+          isOpen={isCreateFileModalOpen}
+          onClose={() => setIsCreateFileModalOpen(false)}
+          onCreateFile={handleCreateFile}
+        />
+      )}
 
       <FilePropertiesModal
         isOpen={propertiesModal.isOpen}
@@ -726,7 +737,7 @@ export const Dashboard: React.FC = () => {
         onToast={addToast}
       />
 
-      {isCreateFolderModalOpen && (
+      {isAdmin && isCreateFolderModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-2xl border border-white/[0.1] bg-[#0c101a]/95 shadow-2xl backdrop-blur-2xl overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-white/[0.08] p-4">
@@ -794,7 +805,7 @@ export const Dashboard: React.FC = () => {
         onContextMenu={(e) => handleOpenContextMenu(e, null)}
       >
         {/* Service Account integration helper hint */}
-        {serviceAccountEmail && showEmailBanner && (
+        {isAdmin && serviceAccountEmail && showEmailBanner && (
           <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-2xl border border-teal-500/20 bg-teal-500/[0.04] p-3 text-xs text-slate-300 backdrop-blur-sm animate-in fade-in">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="p-1 rounded-lg bg-teal-500/10 text-teal-400 shrink-0">
@@ -872,74 +883,74 @@ export const Dashboard: React.FC = () => {
             <Breadcrumbs
               items={breadcrumbs}
               onSelectFolder={handleSelectBreadcrumb}
-              onDropOnFolder={handleDropOnFolder}
+              onDropOnFolder={isAdmin ? handleDropOnFolder : undefined}
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* New Folder */}
-            <button
-              type="button"
-              onClick={() => setIsCreateFolderModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/[0.08] hover:border-teal-500/40 hover:text-teal-300 transition-colors"
-            >
-              <FolderPlus className="h-3.5 w-3.5 text-teal-400" />
-              <span>New Folder</span>
-            </button>
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateFolderModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/[0.08] hover:border-teal-500/40 hover:text-teal-300 transition-colors"
+                >
+                  <FolderPlus className="h-3.5 w-3.5 text-teal-400" />
+                  <span>New Folder</span>
+                </button>
 
-            {/* New File */}
-            <button
-              type="button"
-              onClick={() => setIsCreateFileModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/[0.08] hover:border-teal-500/40 hover:text-teal-300 transition-colors"
-            >
-              <FilePlus className="h-3.5 w-3.5 text-teal-400" />
-              <span>New File</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateFileModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/[0.08] hover:border-teal-500/40 hover:text-teal-300 transition-colors"
+                >
+                  <FilePlus className="h-3.5 w-3.5 text-teal-400" />
+                  <span>New File</span>
+                </button>
 
-            {/* Upload File */}
-            <label className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-400 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-teal-500/20 hover:brightness-110 active:scale-95 transition-all">
-              <UploadCloud className="h-3.5 w-3.5" />
-              <span>Upload</span>
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={async (e) => {
-                  const uploadFileList = e.target.files;
-                  if (uploadFileList && uploadFileList.length > 0) {
-                    try {
-                      addToast(`Uploading ${uploadFileList.length} file(s)...`, 'info');
-                      await driveService.uploadFiles(
-                        Array.from(uploadFileList),
-                        currentFolderId === 'root' ? undefined : currentFolderId
-                      );
-                      addToast(`Successfully uploaded ${uploadFileList.length} file(s)!`, 'success');
-                      fetchFiles(currentFolderId, searchScope);
-                      fetchStats();
-                    } catch (err: any) {
-                      const msg =
-                        err.response?.data?.error ||
-                        err.response?.data?.message ||
-                        err.message ||
-                        'Error';
-                      addToast(`Upload failed: ${msg}`, 'error');
-                    }
-                  }
-                }}
-              />
-            </label>
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-400 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-teal-500/20 hover:brightness-110 active:scale-95 transition-all">
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  <span>Upload</span>
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => {
+                      const uploadFileList = e.target.files;
+                      if (uploadFileList && uploadFileList.length > 0) {
+                        try {
+                          addToast(`Uploading ${uploadFileList.length} file(s)...`, 'info');
+                          await driveService.uploadFiles(
+                            Array.from(uploadFileList),
+                            currentFolderId === 'root' ? undefined : currentFolderId
+                          );
+                          addToast(`Successfully uploaded ${uploadFileList.length} file(s)!`, 'success');
+                          fetchFiles(currentFolderId, searchScope);
+                          fetchStats();
+                        } catch (err: any) {
+                          const msg =
+                            err.response?.data?.error ||
+                            err.response?.data?.message ||
+                            err.message ||
+                            'Error';
+                          addToast(`Upload failed: ${msg}`, 'error');
+                        }
+                      }
+                    }}
+                  />
+                </label>
 
-            {/* Refresh / Sync icon */}
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={isSyncing}
-              title="Refresh and reconcile"
-              className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1.5 text-xs text-slate-400 hover:text-teal-400 hover:bg-white/[0.06] transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-teal-400' : ''}`} />
-            </button>
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={isSyncing}
+                  title="Refresh and reconcile"
+                  className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1.5 text-xs text-slate-400 hover:text-teal-400 hover:bg-white/[0.06] transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-teal-400' : ''}`} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -974,7 +985,7 @@ export const Dashboard: React.FC = () => {
           onDragOver={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (!isDragging) setIsDragging(true);
+            if (isAdmin && !isDragging) setIsDragging(true);
           }}
           onDragLeave={(e) => {
             e.preventDefault();
@@ -985,6 +996,7 @@ export const Dashboard: React.FC = () => {
             e.preventDefault();
             e.stopPropagation();
             setIsDragging(false);
+            if (!isAdmin) return;
             const droppedFiles = e.dataTransfer.files;
             if (droppedFiles && droppedFiles.length > 0) {
               try {
@@ -1007,7 +1019,7 @@ export const Dashboard: React.FC = () => {
             }
           }}
         >
-          {isDragging && (
+          {isAdmin && isDragging && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#06090e]/85 backdrop-blur-md">
               <div className="flex flex-col items-center gap-3 text-teal-400 animate-pulse">
                 <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/30">
@@ -1057,9 +1069,11 @@ export const Dashboard: React.FC = () => {
                     This folder is empty
                   </h3>
                   <p className="mt-1 text-xs text-slate-500 max-w-sm">
-                    Drag and drop files here, right-click, or use the actions below to get started.
+                    {isAdmin
+                      ? 'Drag and drop files here, right-click, or use the actions below to get started.'
+                      : 'There are no files in this folder.'}
                   </p>
-                  <div className="mt-5 flex items-center gap-2.5">
+                  {isAdmin && <div className="mt-5 flex items-center gap-2.5">
                     <button
                       type="button"
                       onClick={() => setIsCreateFolderModalOpen(true)}
@@ -1076,7 +1090,7 @@ export const Dashboard: React.FC = () => {
                       <FilePlus className="h-3.5 w-3.5 text-teal-400" />
                       <span>New File</span>
                     </button>
-                  </div>
+                  </div>}
                 </>
               )}
             </div>
@@ -1088,6 +1102,7 @@ export const Dashboard: React.FC = () => {
                   <FileCard
                     key={file.id || file.driveId}
                     file={file}
+                    canEdit={isAdmin}
                     isSelected={selectedFileIds.has(file.driveId)}
                     isCut={
                       clipboard?.action === 'cut' &&
@@ -1098,13 +1113,13 @@ export const Dashboard: React.FC = () => {
                     onOpenFolder={handleOpenFolder}
                     onDownloadFile={handleDownloadFile}
                     onPreviewFile={(f) => setPreviewFile(f)}
-                    onRename={(f) => setRenameModal({ isOpen: true, item: f })}
-                    onDelete={(f) => setDeleteModal({ isOpen: true, items: [f] })}
-                    onCopy={(f) => handleCopy([f])}
-                    onCut={(f) => handleCut([f])}
+                    onRename={isAdmin ? (f) => setRenameModal({ isOpen: true, item: f }) : undefined}
+                    onDelete={isAdmin ? (f) => setDeleteModal({ isOpen: true, items: [f] }) : undefined}
+                    onCopy={isAdmin ? (f) => handleCopy([f]) : undefined}
+                    onCut={isAdmin ? (f) => handleCut([f]) : undefined}
                     onProperties={(f) => setPropertiesModal({ isOpen: true, item: f })}
                     onContextMenu={handleOpenContextMenu}
-                    onDropOnFolder={handleDropOnFolder}
+                    onDropOnFolder={isAdmin ? handleDropOnFolder : undefined}
                     onToast={addToast}
                   />
                 ))}
@@ -1134,7 +1149,9 @@ export const Dashboard: React.FC = () => {
                     <th className="hidden px-3 py-3 font-medium sm:table-cell">Size</th>
                     <th className="hidden px-3 py-3 font-medium md:table-cell">Type</th>
                     <th className="hidden px-3 py-3 font-medium lg:table-cell">Modified</th>
-                    <th className="py-3 pl-3 pr-4 sm:pr-6 text-right font-medium">Actions</th>
+                    <th className="py-3 pl-3 pr-4 sm:pr-6 text-right font-medium">
+                      {isAdmin ? 'Actions' : 'View'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
@@ -1142,6 +1159,7 @@ export const Dashboard: React.FC = () => {
                     <FileRow
                       key={file.id || file.driveId}
                       file={file}
+                      canEdit={isAdmin}
                       isSelected={selectedFileIds.has(file.driveId)}
                       isCut={
                         clipboard?.action === 'cut' &&
@@ -1152,13 +1170,13 @@ export const Dashboard: React.FC = () => {
                       onOpenFolder={handleOpenFolder}
                       onDownloadFile={handleDownloadFile}
                       onPreviewFile={(f) => setPreviewFile(f)}
-                      onRename={(f) => setRenameModal({ isOpen: true, item: f })}
-                      onDelete={(f) => setDeleteModal({ isOpen: true, items: [f] })}
-                      onCopy={(f) => handleCopy([f])}
-                      onCut={(f) => handleCut([f])}
+                      onRename={isAdmin ? (f) => setRenameModal({ isOpen: true, item: f }) : undefined}
+                      onDelete={isAdmin ? (f) => setDeleteModal({ isOpen: true, items: [f] }) : undefined}
+                      onCopy={isAdmin ? (f) => handleCopy([f]) : undefined}
+                      onCut={isAdmin ? (f) => handleCut([f]) : undefined}
                       onProperties={(f) => setPropertiesModal({ isOpen: true, item: f })}
                       onContextMenu={handleOpenContextMenu}
-                      onDropOnFolder={handleDropOnFolder}
+                      onDropOnFolder={isAdmin ? handleDropOnFolder : undefined}
                       onToast={addToast}
                     />
                   ))}
@@ -1175,23 +1193,23 @@ export const Dashboard: React.FC = () => {
               {selectedFileIds.size} selected
             </span>
 
-            <button
+            {isAdmin && <button
               type="button"
               onClick={() => handleCopy(selectedItems)}
               className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors"
             >
               <Copy className="h-3.5 w-3.5" />
               <span>Copy</span>
-            </button>
+            </button>}
 
-            <button
+            {isAdmin && <button
               type="button"
               onClick={() => handleCut(selectedItems)}
               className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors"
             >
               <Scissors className="h-3.5 w-3.5" />
               <span>Cut</span>
-            </button>
+            </button>}
 
             {selectedItems.some((i) => !i.isFolder) && (
               <>
@@ -1215,14 +1233,14 @@ export const Dashboard: React.FC = () => {
               </>
             )}
 
-            <button
+            {isAdmin && <button
               type="button"
               onClick={() => setDeleteModal({ isOpen: true, items: selectedItems })}
               className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 font-medium text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Delete</span>
-            </button>
+            </button>}
 
             <button
               type="button"
@@ -1236,7 +1254,7 @@ export const Dashboard: React.FC = () => {
         )}
 
         {/* Floating Clipboard Dock */}
-        {clipboard && clipboard.items.length > 0 && selectedFileIds.size === 0 && (
+        {isAdmin && clipboard && clipboard.items.length > 0 && selectedFileIds.size === 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-teal-500/30 bg-[#071916]/95 px-4 py-2 text-xs shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom-3 ring-1 ring-teal-500/20 text-teal-200">
             <div className="flex items-center gap-2">
               {clipboard.action === 'cut' ? (

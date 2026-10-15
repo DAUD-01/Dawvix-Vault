@@ -16,7 +16,7 @@ import {
   copyItems,
   createFile,
 } from '../controllers/driveController.js';
-import { authMiddleware } from '../middleware/authMiddleware.js';
+import { authMiddleware, requireAdmin } from '../middleware/authMiddleware.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -26,17 +26,17 @@ router.use(authMiddleware);
 
 router.get('/stats', getVaultStats);
 router.get('/files', getFiles);
-router.post('/sync', syncDrive);
+router.post('/sync', requireAdmin, syncDrive);
 router.get('/download/:fileId', downloadFile);
 router.get('/view/:fileId', viewFile);
 router.get('/content/:fileId', getFileTextContent);
-router.post('/folder', createFolder);
-router.post('/upload', upload.array('files'), uploadFiles);
-router.delete('/file/:fileId', deleteFile);
-router.post('/batch-delete', batchDeleteFiles);
-router.post('/rename', renameItem);
-router.post('/move', moveItems);
-router.post('/copy', copyItems);
-router.post('/create-file', createFile);
+router.post('/folder', requireAdmin, createFolder);
+router.post('/upload', requireAdmin, upload.array('files'), uploadFiles);
+router.delete('/file/:fileId', requireAdmin, deleteFile);
+router.post('/batch-delete', requireAdmin, batchDeleteFiles);
+router.post('/rename', requireAdmin, renameItem);
+router.post('/move', requireAdmin, moveItems);
+router.post('/copy', requireAdmin, copyItems);
+router.post('/create-file', requireAdmin, createFile);
 
 export default router;

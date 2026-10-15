@@ -17,6 +17,7 @@ import { driveService } from '../services/api';
 
 interface FileCardProps {
   file: FileItem;
+  canEdit?: boolean;
   isSelected?: boolean;
   isCut?: boolean;
   selectedFileIds?: Set<string>;
@@ -36,6 +37,7 @@ interface FileCardProps {
 
 export const FileCard: React.FC<FileCardProps> = ({
   file,
+  canEdit = true,
   isSelected = false,
   isCut = false,
   selectedFileIds,
@@ -105,6 +107,7 @@ export const FileCard: React.FC<FileCardProps> = ({
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent) => {
+    if (!canEdit) return;
     const itemIds =
       selectedFileIds && selectedFileIds.has(file.driveId)
         ? Array.from(selectedFileIds)
@@ -114,7 +117,7 @@ export const FileCard: React.FC<FileCardProps> = ({
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (file.isFolder) {
+    if (canEdit && file.isFolder) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       setIsDragOver(true);
@@ -126,7 +129,7 @@ export const FileCard: React.FC<FileCardProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    if (!file.isFolder) return;
+    if (!canEdit || !file.isFolder) return;
     e.preventDefault();
     setIsDragOver(false);
     try {
@@ -146,7 +149,7 @@ export const FileCard: React.FC<FileCardProps> = ({
 
   return (
     <div
-      draggable
+      draggable={canEdit}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

@@ -51,9 +51,13 @@ const runSeed = async () => {
     if (!existingAdmin) {
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(adminPassword, salt);
-      await User.create({ username: adminUsername, passwordHash });
+      await User.create({ username: adminUsername, passwordHash, role: 'admin' });
       console.log(`[Seed] Created admin account: "${adminUsername}"`);
     } else {
+      if (existingAdmin.role !== 'admin') {
+        existingAdmin.role = 'admin';
+        await existingAdmin.save();
+      }
       console.log(`[Seed] Admin user "${adminUsername}" is active.`);
     }
 

@@ -12,6 +12,7 @@ export interface FileItem {
 export interface User {
   id: string;
   username: string;
+  role: 'admin' | 'viewer';
 }
 
 export interface BreadcrumbItem {

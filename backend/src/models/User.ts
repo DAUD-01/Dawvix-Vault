@@ -1,9 +1,12 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+export type UserRole = 'admin' | 'viewer';
+
 export interface IUser extends Document {
   username: string;
   passwordHash: string;
+  role: UserRole;
   createdAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
@@ -19,6 +22,12 @@ const userSchema = new Schema<IUser>(
     },
     passwordHash: {
       type: String,
+      required: true,
+    },
+    role: {
+      type: String,
+      enum: ['admin', 'viewer'],
+      default: 'viewer',
       required: true,
     },
     createdAt: {
