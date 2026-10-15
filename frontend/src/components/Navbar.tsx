@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   DEFAULT_THEME_SEED,
@@ -208,9 +209,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="mx-auto flex h-[var(--header-h)] w-full max-w-[90rem] items-center justify-between" style={{ paddingInline: 'var(--gutter)' }}>
         <div className="flex min-w-0 flex-1 items-center">
           <div className="flex shrink-0 items-center gap-2">
-            <a href="/dashboard?folder=root" aria-label="Go to vault root" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--color-border)] bg-surface-variant/40 text-[color:var(--color-accent)] transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]">
-            <Shield className="h-8 w-8" aria-hidden="true" />
-            </a>
+            <Link
+              to="/dashboard?folder=root"
+              aria-label="Go to dashboard"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--color-border)] bg-surface-variant/40 text-[color:var(--color-accent)] transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+            >
+              <Shield className="h-8 w-8" aria-hidden="true" />
+            </Link>
 
             <span className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
               Dawvix Vault

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dawvix Vault favicon">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5eead4"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="52" height="52" rx="14" fill="#0f172a"/>
+  <rect x="10" y="10" width="44" height="44" rx="12" fill="url(#g)" opacity="0.12"/>
+  <path d="M22 21.5h20a4 4 0 0 1 4 4v21.5a4 4 0 0 1-4 4H22a4 4 0 0 1-4-4V25.5a4 4 0 0 1 4-4Z" fill="none" stroke="url(#g)" stroke-width="3.5"/>
+  <path d="M32 24.5v14.5m-6.5-7.5h13" stroke="#ecfeff" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="8" fill="none" stroke="#ecfeff" stroke-width="3"/>
+</svg>
