@@ -145,7 +145,15 @@ export const performDriveSync = async (
       }
     }
 
-    const visibleItems = allItems.filter((item) => !excludedIds.has(item.id));
+    // Drive items can appear more than once in a paginated result. Reconcile each
+    // Drive id once so counts, metadata, and downstream listings stay canonical.
+    const visibleItems = Array.from(
+      new Map(
+        allItems
+          .filter((item) => !excludedIds.has(item.id))
+          .map((item) => [item.id, item]),
+      ).values(),
+    );
     const itemMap = new Map(visibleItems.map((item) => [item.id, item]));
     const discoveredIds = new Set(visibleItems.map((item) => item.id));
 
@@ -240,6 +248,9 @@ export const performDriveSync = async (
           if (!item.id || !item.name) continue;
           if (isSyncthingArtifactName(item.name)) continue;
 
+          // A Drive item may belong to several folders. Its complete parent list
+          // is already persisted on first discovery, so do not process it again.
+          if (discoveredIds.has(item.id)) continue;
           discoveredIds.add(item.id);
           const isFolder =
             item.mimeType === "application/vnd.google-apps.folder";
@@ -341,8 +352,30 @@ export const getFiles = async (req: Request, res: Response): Promise<void> => {
     filter.driveId = { $nin: excludedIds };
 
     const files = await FileMetadata.find(filter).sort(sortObj).lean();
-    const uniqueFiles = Array.from(
+    const uniqueDriveFiles = Array.from(
       new Map(files.map((file) => [file.driveId, file])).values(),
+    );
+    // Keep one canonical record when equivalent metadata exists under multiple
+    // Drive ids. Different folders remain independent.
+    const uniqueFiles = Array.from(
+      uniqueDriveFiles.reduce((unique, file) => {
+        const key = [
+          file.isFolder ? "folder" : "file",
+          file.name.trim().toLocaleLowerCase(),
+          file.mimeType.toLocaleLowerCase(),
+          String(file.size),
+          [...file.parents].sort().join(","),
+        ].join("\u0000");
+        const current = unique.get(key);
+        if (
+          !current ||
+          new Date(file.lastSyncedAt).getTime() >
+            new Date(current.lastSyncedAt).getTime()
+        ) {
+          unique.set(key, file);
+        }
+        return unique;
+      }, new Map<string, (typeof files)[number]>()).values(),
     );
 
     let currentFolder = null;

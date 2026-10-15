@@ -52,25 +52,25 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
   const typeMeta = getFileTypeMeta(item.mimeType, item.isFolder);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65  animate-in fade-in duration-150">
       <div
-        className="w-full max-w-md rounded-3xl border border-white/[0.1] bg-[#0c101a]/95 p-6 shadow-2xl backdrop-blur-2xl ring-1 ring-white/[0.05] animate-in zoom-in-95 duration-150 text-slate-100"
+        className="w-full max-w-md rounded-3xl border border-outline/[0.1] bg-surface/95 p-6 shadow-2xl  ring-1 ring-white/[0.05] animate-in zoom-in-95 duration-150 text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.08]">
+        <div className="flex items-center justify-between pb-3.5 border-b border-outline/[0.08]">
           <div className="flex items-center gap-2.5">
             <div className="rounded-xl bg-teal-500/10 border border-teal-500/25 p-2 text-teal-400">
               <Info className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-white">Item Properties</h3>
+              <h3 className="text-sm font-semibold text-on-surface">Item Properties</h3>
               <p className="text-xs text-slate-400">Detailed system metadata</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:bg-white/[0.08] hover:text-white transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:bg-surface-variant hover:text-on-surface transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -78,10 +78,10 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
 
         <div className="mt-4 space-y-3.5 text-xs">
           {/* Header Summary */}
-          <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5">
+          <div className="flex items-center gap-3 rounded-2xl border border-outline/[0.08] bg-surface-variant p-3.5">
             {getFileBadge(item.mimeType, item.isFolder, 'h-6 w-6', 'p-2.5')}
             <div className="min-w-0 flex-1">
-              <h4 className="font-semibold text-white truncate text-xs sm:text-sm" title={item.name}>
+              <h4 className="font-semibold text-on-surface truncate text-xs sm:text-sm">
                 {item.name}
               </h4>
               <div className="flex items-center gap-2 mt-0.5">
@@ -98,13 +98,13 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
           </div>
 
           {/* Details list */}
-          <div className="divide-y divide-white/[0.05] rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+          <div className="divide-y divide-white/[0.05] rounded-2xl border border-outline/[0.08] bg-surface-variant">
             <div className="flex items-center justify-between p-3">
               <span className="flex items-center gap-2 text-slate-400">
                 <Layers className="h-3.5 w-3.5 text-slate-500" />
                 MIME Type
               </span>
-              <span className="font-mono text-[11px] text-slate-300 truncate max-w-[200px]" title={item.mimeType}>
+              <span className="font-mono text-[11px] text-slate-300 truncate max-w-[200px]">
                 {item.isFolder ? 'folder' : item.mimeType}
               </span>
             </div>
@@ -133,14 +133,13 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
                 Vault ID
               </span>
               <div className="flex items-center gap-1.5">
-                <span className="font-mono text-[11px] text-slate-300 truncate max-w-[140px]" title={item.driveId}>
+                <span className="font-mono text-[11px] text-slate-300 truncate max-w-[140px]">
                   {item.driveId}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyId}
-                  className="p-1 rounded hover:bg-white/[0.08] text-slate-400 hover:text-white"
-                  title="Copy ID"
+                  className="p-1 rounded hover:bg-surface-variant text-slate-400 hover:text-on-surface"
                 >
                   {isCopiedId ? <Check className="h-3 w-3 text-teal-400" /> : <Copy className="h-3 w-3" />}
                 </button>
@@ -154,7 +153,7 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
               <label className="block text-[11px] font-medium text-slate-400 mb-1">
                 Direct Stream URL
               </label>
-              <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+              <div className="flex items-center gap-2 rounded-xl border border-outline/[0.08] bg-surface-variant px-3 py-2">
                 <input
                   type="text"
                   readOnly
@@ -164,8 +163,7 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyUrl}
-                  className="shrink-0 p-1 rounded-lg text-slate-400 hover:bg-white/[0.08] hover:text-teal-400 transition-colors"
-                  title="Copy Stream URL"
+                  className="shrink-0 p-1 rounded-lg text-slate-400 hover:bg-surface-variant hover:text-teal-400 transition-colors"
                 >
                   {isCopiedUrl ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
@@ -174,11 +172,11 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
           )}
         </div>
 
-        <div className="flex justify-end pt-4 border-t border-white/[0.08] mt-5">
+        <div className="flex justify-end pt-4 border-t border-outline/[0.08] mt-5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-white/[0.08] px-4 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/[0.08] transition-colors"
+            className="rounded-xl border border-outline/[0.08] px-4 py-1.5 text-xs font-medium text-slate-300 hover:bg-surface-variant transition-colors"
           >
             Close
           </button>

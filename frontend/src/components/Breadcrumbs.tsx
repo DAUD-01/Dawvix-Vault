@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { Fragment, useMemo, useState } from 'react';
 import { BreadcrumbItem } from '../types';
-import { ChevronRight, Home, Folder } from 'lucide-react';
+import { ChevronRight, ChevronDown, MoreHorizontal } from 'lucide-react';
 
 interface BreadcrumbsProps {
   items: BreadcrumbItem[];
@@ -14,9 +14,24 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   onDropOnFolder,
 }) => {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+
+  const navItems = useMemo(
+    () => items.map((item, breadcrumbIndex) => ({ item, breadcrumbIndex })),
+    [items],
+  );
+  const displayItems = useMemo(() => {
+    if (navItems.length <= 4) return navItems;
+    return [navItems[0], ...navItems.slice(-2)];
+  }, [navItems]);
+
+  const overflowItems = useMemo(() => {
+    if (navItems.length <= 4) return [];
+    return navItems.slice(1, -2);
+  }, [navItems]);
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
-    if (index === items.length - 1) return; // Can't drop on current folder
+    if (index === navItems[navItems.length - 1].breadcrumbIndex) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverIndex(index);
@@ -27,7 +42,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent, folderId: string, index: number) => {
-    if (index === items.length - 1) return;
+    if (index === navItems[navItems.length - 1].breadcrumbIndex) return;
     e.preventDefault();
     setDragOverIndex(null);
     try {
@@ -43,41 +58,81 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
     }
   };
 
+  if (!navItems.length) return null;
+
   return (
-    <nav className="flex items-center space-x-1 overflow-x-auto py-1 text-xs text-slate-300">
-      <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-0.5">
-        {items.map((item, index) => {
-          const isLast = index === items.length - 1;
-          const isDragOver = dragOverIndex === index;
+    <nav aria-label="Folder path" className="flex min-w-0 flex-1 items-center overflow-hidden py-1 text-sm text-slate-300">
+      <div className="flex min-w-0 flex-1 items-center">
+        {displayItems.map(({ item, breadcrumbIndex }, index) => {
+          const isLast = breadcrumbIndex === navItems[navItems.length - 1].breadcrumbIndex;
+          const isDragOver = dragOverIndex === breadcrumbIndex;
 
           return (
-            <div key={`${item.id}_${index}`} className="flex items-center shrink-0">
+            <Fragment key={`${item.id}_${breadcrumbIndex}`}>
               {index > 0 && (
-                <ChevronRight className="h-3 w-3 text-slate-600 shrink-0 mx-0.5" />
+                <ChevronRight className="mx-1 h-3 w-3 shrink-0 text-slate-500/40" aria-hidden="true" />
               )}
-              <button
-                type="button"
-                onClick={() => onSelectFolder(item.id, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, item.id, index)}
-                disabled={isLast}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-all ${
-                  isDragOver
-                    ? 'border border-dashed border-teal-400 bg-teal-500/25 text-teal-300 scale-105 shadow-md'
-                    : isLast
-                    ? 'font-semibold text-teal-300 bg-teal-500/10 cursor-default shadow-sm'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.06] cursor-pointer'
-                }`}
-              >
-                {index === 0 ? (
-                  <Home className="h-3.5 w-3.5 text-teal-400 shrink-0" />
-                ) : (
-                  <Folder className="h-3.5 w-3.5 text-amber-400/80 shrink-0" />
-                )}
-                <span className="truncate max-w-[140px] font-medium">{item.name}</span>
-              </button>
-            </div>
+
+              {navItems.length > 4 && index === 1 && overflowItems.length > 0 && (
+                <>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="flex h-7 items-center justify-center rounded-md px-2 text-slate-500 hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+                      aria-label="Show hidden breadcrumb items"
+                      onClick={() => setShowOverflowMenu((open) => !open)}
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                      <ChevronDown className="ml-0.5 h-3 w-3" aria-hidden="true" />
+                    </button>
+
+                    {showOverflowMenu && (
+                      <div className="absolute left-0 top-full z-20 mt-2 min-w-40 rounded-xl border border-[color:var(--color-border)] bg-surface p-1 shadow-2xl">
+                        {overflowItems.map(({ item: hiddenItem, breadcrumbIndex: hiddenIndex }) => (
+                          <button
+                            key={hiddenItem.id}
+                            type="button"
+                            onClick={() => {
+                              setShowOverflowMenu(false);
+                              onSelectFolder(hiddenItem.id, hiddenIndex);
+                            }}
+                            className="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-xs text-slate-300 hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+                          >
+                            <span className="max-w-[160px] truncate">{hiddenItem.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <ChevronRight className="mx-1 h-3 w-3 shrink-0 text-slate-500/40" aria-hidden="true" />
+                </>
+              )}
+
+              {isLast ? (
+                <span
+                  aria-current="page"
+                  className="flex max-w-[160px] items-center justify-center truncate text-[13px] font-semibold text-[color:var(--color-text-primary)]"
+                >
+                  {item.name}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSelectFolder(item.id, breadcrumbIndex)}
+                  onDragOver={(e) => handleDragOver(e, breadcrumbIndex)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, item.id, breadcrumbIndex)}
+                  className={`flex h-7 max-w-[160px] items-center rounded-md px-1.5 text-[13px] font-medium transition-colors ${
+                    isDragOver
+                      ? 'bg-[color:var(--color-hover)] text-[color:var(--color-text-primary)]'
+                      : 'text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]'
+                  }`}
+                  aria-label={`Go to ${item.name}`}
+                >
+                  <span className="truncate">{item.name}</span>
+                </button>
+              )}
+            </Fragment>
           );
         })}
       </div>

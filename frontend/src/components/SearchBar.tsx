@@ -9,7 +9,6 @@ import {
   Globe,
   Folder,
   History,
-  Sparkles,
 } from "lucide-react";
 import { SortBy, SortOrder, SearchScope } from "../types";
 
@@ -66,6 +65,7 @@ interface SearchBarProps {
   onFilterChange: (type: string) => void;
   sortBy: SortBy;
   sortOrder: SortOrder;
+  isDefaultSort: boolean;
   onSortChange: (by: SortBy, order: SortOrder) => void;
   searchScope: SearchScope;
   onScopeChange: (scope: SearchScope) => void;
@@ -85,6 +85,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onFilterChange,
   sortBy,
   sortOrder,
+  isDefaultSort,
   onSortChange,
   searchScope,
   onScopeChange,
@@ -158,102 +159,135 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     onSortChange(by, order);
   };
 
+  const handleScopeKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const options = Array.from(
+      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [],
+    );
+    if (options.length !== 2) return;
+
+    let nextIndex: number;
+    if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = options.length - 1;
+    else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (options.indexOf(event.currentTarget) + 1) % options.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (options.indexOf(event.currentTarget) + options.length - 1) % options.length;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    options[nextIndex].focus();
+    onScopeChange(nextIndex === 0 ? "folder" : "vault");
+  };
+
   const categories = [
     { id: "all", label: "All" },
     { id: "folders", label: "Folders" },
+    { id: "pdf", label: "PDF" },
     { id: "documents", label: "Docs" },
-    { id: "media", label: "Media" },
-    { id: "archives", label: "Code" },
+    { id: "spreadsheets", label: "Sheets" },
+    { id: "presentations", label: "Slides" },
+    { id: "images", label: "Images" },
+    { id: "media", label: "Audio & video" },
+    { id: "archives", label: "Archives" },
+    { id: "code", label: "Code" },
   ];
-
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between py-1 relative">
-      {/* Search Input Area */}
-      <div
-        className="flex flex-1 items-center gap-2 max-w-xl relative"
-        ref={dropdownRef}
-      >
-        {/* Scope Segmented Control */}
-        <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 shrink-0">
+    <div className="relative flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div ref={dropdownRef} className="relative flex w-full min-w-0 flex-1 items-center gap-2">
+        <div
+          role="radiogroup"
+          aria-label="List mode and search scope"
+          className="flex h-[var(--control-h)] shrink-0 items-center rounded-[var(--control-radius)] bg-surface-variant/60 p-1"
+        >
           <button
             type="button"
+            role="radio"
+            aria-label="Browse by folder. Search this folder."
+            aria-checked={searchScope === "folder"}
+            tabIndex={searchScope === "folder" ? 0 : -1}
             onClick={() => onScopeChange("folder")}
-            aria-label="Search inside current folder"
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${
+            onKeyDown={handleScopeKeyDown}
+            className={`flex h-[calc(var(--control-h)-8px)] items-center gap-1.5 rounded-[4px] border px-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] ${
               searchScope === "folder"
-                ? "bg-teal-500/20 text-teal-300 border border-teal-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "border-transparent bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
             }`}
           >
-            <Folder className="h-3.5 w-3.5" />
+            <Folder className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Folder</span>
           </button>
           <button
             type="button"
+            role="radio"
+            aria-label="Show all items. Search the whole vault."
+            aria-checked={searchScope === "vault"}
+            tabIndex={searchScope === "vault" ? 0 : -1}
             onClick={() => onScopeChange("vault")}
-            aria-label="Search entire vault globally"
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${
+            onKeyDown={handleScopeKeyDown}
+            className={`flex h-[calc(var(--control-h)-8px)] items-center gap-1.5 rounded-[4px] border px-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] ${
               searchScope === "vault"
-                ? "bg-teal-500/20 text-teal-300 border border-teal-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "border-transparent bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+                : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
             }`}
           >
-            <Globe className="h-3.5 w-3.5" />
+            <Globe className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">All Vault</span>
           </button>
         </div>
 
-        {/* Search Input Field */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 transition-colors pointer-events-none" />
+        <div className="relative min-w-0 flex-1" style={{ maxWidth: 480, minWidth: 200 }}>
+          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[color:var(--color-text-muted)]" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
+            name="vault-search"
+            autoComplete="off"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             onFocus={() => setShowRecentDropdown(true)}
             onKeyDown={handleKeyDown}
             placeholder={
               searchScope === "vault"
-                ? "Search all vault files... (Press /)"
-                : "Filter files in this folder... (Press /)"
+                ? "Search entire vault…"
+                : "Filter files in this folder…"
             }
-            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] py-2 pl-9 pr-14 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all focus:border-teal-500/60 focus:bg-white/[0.05] focus:ring-2 focus:ring-teal-500/20"
+            aria-label={searchScope === "vault" ? "Search all vault files" : "Search files in this folder"}
+            className="glass-input h-[var(--control-h)] w-full rounded-[var(--control-radius)] border border-[color:var(--color-border-control)] bg-surface-variant py-1.5 pl-9 pr-12 text-[13px] text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-muted)] outline-none transition-colors focus:border-[color:var(--color-accent)] focus:ring-2 focus:ring-[color:var(--color-accent)]/20"
           />
-          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <div className="absolute right-2.5 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1">
             {searchQuery ? (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                className="p-1 text-slate-500 hover:text-slate-200 hover:bg-white/10 rounded-md transition-all focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none"
                 aria-label="Clear search"
+                className="flex h-7 w-7 items-center justify-center rounded-[var(--control-radius)] text-[color:var(--color-text-muted)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             ) : (
-              <kbd className="hidden sm:inline-block rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-mono text-slate-500 select-none">
+              <kbd className="hidden rounded-md border border-[color:var(--color-border-control)] bg-surface-variant px-1.5 py-0.5 text-[10px] font-mono text-[color:var(--color-text-muted)] sm:inline-block">
                 /
               </kbd>
             )}
           </div>
 
-          {/* Recent Searches Dropdown */}
           {showRecentDropdown && recentSearches.length > 0 && !searchQuery && (
-            <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-white/[0.1] bg-[#0c101a]/95 shadow-2xl backdrop-blur-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/[0.08] text-[11px] font-medium text-slate-400">
-                <span className="flex items-center gap-1.5 text-slate-300">
-                  <History className="h-3.5 w-3.5 text-teal-400" /> Recent
-                  Searches
+            <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-64 overflow-y-auto rounded-xl border border-outline/[0.10] bg-surface/95 shadow-xl glass-panel">
+              <div className="flex items-center justify-between border-b border-outline/[0.08] px-3.5 py-2 text-[11px] font-medium text-[color:var(--color-text-muted)]">
+                <span className="flex items-center gap-1.5 text-[color:var(--color-text-primary)]">
+                  <History className="h-3.5 w-3.5" /> Recent Searches
                 </span>
                 <button
                   type="button"
                   onClick={clearSearches}
-                  className="hover:text-slate-200 transition-colors text-[10px] px-2 py-0.5 rounded-md hover:bg-white/5 focus-visible:ring-1 focus-visible:ring-teal-500 focus-visible:outline-none"
+                  className="rounded-md px-2 py-0.5 text-[10px] text-[color:var(--color-text-muted)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
                 >
                   Clear history
                 </button>
               </div>
-              <div className="p-1.5">
+              <div className="p-1">
                 {recentSearches.map((item, index) => (
                   <button
                     key={index}
@@ -262,10 +296,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                       onSearchChange(item);
                       setShowRecentDropdown(false);
                     }}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.06] hover:text-teal-300 rounded-xl transition-colors text-left group focus-visible:bg-white/[0.06] focus-visible:text-teal-300 focus-visible:outline-none"
+                    className="w-full rounded-lg px-3 py-2 text-left text-xs text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)] focus-visible:bg-[color:var(--color-hover)] focus-visible:outline-none"
                   >
-                    <span>{item}</span>
-                    <Sparkles className="h-3 w-3 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 text-teal-400 transition-opacity" />
+                    {item}
                   </button>
                 ))}
               </div>
@@ -274,90 +307,98 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         </div>
       </div>
 
-      {/* Filter, Sort & View Controls */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Quick Category Chips (Scrollable on mobile) */}
+      <div className="flex shrink-0 items-center gap-2">
         <div
-          className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 overflow-x-auto overflow-y-hidden max-w-full hide-scrollbar"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          className={`relative flex h-[var(--control-h)] w-[var(--control-h)] shrink-0 items-center justify-center rounded-[var(--control-radius)] transition-colors focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
+            filterType !== "all"
+              ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+              : "text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+          }`}
+          data-active={filterType !== "all"}
         >
-          <Filter className="h-3.5 w-3.5 text-slate-500 mx-1.5 hidden sm:block shrink-0" />
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => onFilterChange(cat.id)}
-              className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${
-                filterType === cat.id
-                  ? "bg-teal-500/20 text-teal-300 border border-teal-500/30 shadow-sm"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Sort Dropdown */}
-        <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 hover:border-white/[0.15] transition-colors focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500/60">
-          <ArrowUpDown className="h-3.5 w-3.5 text-slate-500 mr-1.5 shrink-0" />
+          {filterType !== "all" && (
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--color-accent)] px-1 text-[11px] font-semibold leading-none text-[color:var(--color-on-primary)]">
+              1
+            </span>
+          )}
+          <Filter className="h-4 w-4" aria-hidden="true" />
           <select
-            value={currentSortKey}
-            onChange={(e) => handleSortSelect(e.target.value)}
-            className="bg-transparent text-xs text-slate-300 outline-none cursor-pointer py-0.5 focus:outline-none"
-            aria-label="Sort results"
+            name="file-type-filter"
+            autoComplete="off"
+            id="file-type-filter"
+            value={filterType}
+            onChange={(event) => onFilterChange(event.target.value)}
+            aria-label="Filter"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
           >
-            <option value="name_asc" className="bg-[#0b0f19]">
-              Name (A → Z)
-            </option>
-            <option value="name_desc" className="bg-[#0b0f19]">
-              Name (Z → A)
-            </option>
-            <option value="size_desc" className="bg-[#0b0f19]">
-              Size (Largest)
-            </option>
-            <option value="size_asc" className="bg-[#0b0f19]">
-              Size (Smallest)
-            </option>
-            <option value="lastSyncedAt_desc" className="bg-[#0b0f19]">
-              Date (Newest)
-            </option>
-            <option value="lastSyncedAt_asc" className="bg-[#0b0f19]">
-              Date (Oldest)
-            </option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id} className="bg-surface">
+                {category.label}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* List / Grid Toggle */}
-        <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
+        <div
+          className={`relative flex h-[var(--control-h)] w-[var(--control-h)] shrink-0 items-center justify-center rounded-[var(--control-radius)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
+            !isDefaultSort
+              ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+              : "text-[color:var(--color-text-muted)]"
+          }`}
+          data-active={!isDefaultSort}
+        >
+          {!isDefaultSort ? (
+            <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[color:var(--color-accent)]" aria-hidden="true" />
+          ) : null}
+          <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+          <select
+            name="sort-results"
+            autoComplete="off"
+            value={currentSortKey}
+            onChange={(e) => handleSortSelect(e.target.value)}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Sort"
+          >
+            <option value="name_asc" className="bg-surface">Name (A → Z)</option>
+            <option value="name_desc" className="bg-surface">Name (Z → A)</option>
+            <option value="size_desc" className="bg-surface">Size (Largest)</option>
+            <option value="size_asc" className="bg-surface">Size (Smallest)</option>
+            <option value="lastSyncedAt_desc" className="bg-surface">Date (Newest)</option>
+            <option value="lastSyncedAt_asc" className="bg-surface">Date (Oldest)</option>
+            <option value="mimeType_asc" className="bg-surface">Type (A → Z)</option>
+            <option value="mimeType_desc" className="bg-surface">Type (Z → A)</option>
+          </select>
+        </div>
+
+        <div className="flex h-[var(--control-h)] shrink-0 items-center rounded-[var(--control-radius)] bg-surface-variant/60 p-1">
           <button
             type="button"
             onClick={() => onToggleGrid(false)}
-            aria-label="Switch to list view"
-            className={`rounded-lg p-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${
+            aria-label="List view"
+            aria-pressed={!isGrid}
+            className={`flex h-[calc(var(--control-h)-8px)] w-[calc(var(--control-h)-8px)] items-center justify-center rounded-[4px] border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] ${
               !isGrid
-                ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
-                : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                ? "border-transparent bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+                : "border-transparent text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
             }`}
           >
-            <List className="h-3.5 w-3.5" />
+            <List className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={() => onToggleGrid(true)}
-            aria-label="Switch to grid view"
-            className={`rounded-lg p-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${
+            aria-label="Grid view"
+            aria-pressed={isGrid}
+            className={`flex h-[calc(var(--control-h)-8px)] w-[calc(var(--control-h)-8px)] items-center justify-center rounded-[4px] border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] ${
               isGrid
-                ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
-                : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                ? "border-transparent bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+                : "border-transparent text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
             }`}
           >
-            <LayoutGrid className="h-3.5 w-3.5" />
+            <LayoutGrid className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-
-        {/* Dynamic Count Badge */}
-        <div className="text-[11px] text-slate-500 hidden xl:block pl-1 font-medium">
+        <div className="hidden pl-1 text-[11px] font-medium text-[color:var(--color-text-muted)] xl:block">
           {filteredCount === totalCount
             ? `${totalCount.toLocaleString()} items`
             : `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()}`}
