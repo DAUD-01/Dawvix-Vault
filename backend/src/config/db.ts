@@ -1,33 +1,39 @@
-import dns from 'dns';
-import mongoose from 'mongoose';
+import dns from "node:dns";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export const connectDB = async (): Promise<void> => {
-  const mongoUri =
-    process.env.MONGODB_URI ||
-    process.env.MONGO_URI ||
-    'mongodb+srv://dawoodsardar252_db_user:hfISVZ7Gz03JebvT@cluster0.gmhmyxh.mongodb.net/university_vault?retryWrites=true&w=majority';
+  const mongoUri = process.env.MONGODB_URI;
 
-  // Ensure SRV DNS resolution works reliably for mongodb+srv URIs across all network providers
-  if (mongoUri.startsWith('mongodb+srv://')) {
+  if (!mongoUri) {
+    throw new Error("[Database] MONGODB_URI is not defined in the .env file");
+  }
+
+  // Configure DNS for MongoDB Atlas SRV connections
+  if (mongoUri.startsWith("mongodb+srv://")) {
     try {
-      dns.setServers(['8.8.8.8', '1.1.1.1']);
+      dns.setServers(["8.8.8.8", "1.1.1.1"]);
     } catch (dnsErr) {
-      console.warn('[Database] Could not set custom DNS servers:', (dnsErr as Error).message);
+      console.warn("[Database] Could not set custom DNS servers:", dnsErr);
     }
   }
 
   try {
-    mongoose.set('strictQuery', false);
+    mongoose.set("strictQuery", false);
+
     await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 15000,
     });
-    console.log(
-      `[Database] Successfully connected to MongoDB Atlas at ${mongoUri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')}`
-    );
+
+    console.log("[Database] Successfully connected to MongoDB Atlas");
   } catch (error) {
-    console.error('[Database] MongoDB connection failed:', (error as Error).message);
-    console.warn(
-      '[Database] Running in disconnected state. Ensure MongoDB Atlas cluster is accessible and IP whitelist is configured.'
+    console.error(
+      "[Database] MongoDB connection failed:",
+      error instanceof Error ? error.message : error,
     );
+
+    throw error;
   }
 };
