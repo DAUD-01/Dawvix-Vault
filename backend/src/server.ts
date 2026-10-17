@@ -94,13 +94,14 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 // Initialize database & start server
 const startServer = async () => {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`=========================================`);
     console.log(` 🛡️  University Vault Gateway Backend    `);
     console.log(` 🚀 Server listening on port: ${PORT}   `);
     console.log(` 🌐 Health: http://localhost:${PORT}/api/health`);
     console.log(`=========================================`);
   });
+  server.requestTimeout = 6 * 60 * 60 * 1000;
 
   // Connect to DB in background
   connectDB()

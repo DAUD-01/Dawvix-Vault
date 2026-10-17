@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import fs from 'fs';
 import multer from 'multer';
+import path from 'path';
 import {
   getFiles,
   syncDrive,
@@ -19,7 +21,14 @@ import {
 import { authMiddleware, requireAdmin } from '../middleware/authMiddleware.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const uploadTempDir = path.resolve(process.cwd(), 'uploads', '.tmp');
+fs.mkdirSync(uploadTempDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadTempDir,
+  }),
+});
 
 // Protect all /api/drive/* endpoints
 router.use(authMiddleware);

@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { createReadStream, promises as fsPromises, renameSync } from "node:fs";
+import path from "node:path";
 import { PassThrough } from "stream";
 import {
   drive,
@@ -920,13 +922,13 @@ export const uploadFiles = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
+  const files = req.files as Express.Multer.File[] | undefined;
+
   try {
     const rawParentId = req.body.parentId;
     const rootFolderId = getRootFolderId();
     const targetParentId =
       rawParentId && rawParentId !== "root" ? rawParentId : rootFolderId;
-
-    const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
       res
@@ -956,12 +958,9 @@ export const uploadFiles = async (
         fileMetadata.parents = [targetParentId];
       }
 
-      const bufferStream = new PassThrough();
-      bufferStream.end(file.buffer);
-
       const media = {
         mimeType: file.mimetype,
-        body: bufferStream,
+        body: createReadStream(file.path),
       };
 
       let uploadedFile: any;
@@ -982,7 +981,6 @@ export const uploadFiles = async (
           driveError?.message || driveError,
         );
         const fs = await import("fs");
-        const path = await import("path");
 
         const uploadsDir = path.join(process.cwd(), "uploads");
         if (!fs.existsSync(uploadsDir)) {
@@ -995,7 +993,7 @@ export const uploadFiles = async (
           "_" +
           Math.random().toString(36).substr(2, 9);
         const localFilePath = path.join(uploadsDir, localId);
-        fs.writeFileSync(localFilePath, file.buffer);
+        renameSync(file.path, localFilePath);
 
         uploadedFile = {
           id: localId,
@@ -1035,6 +1033,19 @@ export const uploadFiles = async (
       message: "Failed to upload files.",
       error: (error as Error).message,
     });
+  } finally {
+    await Promise.all(
+      (files || []).map((file) =>
+        fsPromises.unlink(file.path).catch((error: NodeJS.ErrnoException) => {
+          if (error.code !== "ENOENT") {
+            console.error(
+              `[DriveController] Failed to remove temporary upload "${file.path}":`,
+              error,
+            );
+          }
+        }),
+      ),
+    );
   }
 };
 

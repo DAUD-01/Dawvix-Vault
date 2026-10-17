@@ -43,6 +43,7 @@ It serves as an **authenticated streaming proxy** between your client device and
   - Node.js + Express + TypeScript
   - Mongoose + MongoDB (for instant cached metadata indexing & live vault stats)
   - `googleapis` (Drive v3) for recursive file indexing, export, and proxy streaming
+  - Disk-backed, streamed uploads to Google Drive, avoiding buffering entire large files in server memory
   - HTTP Range Requests (RFC 7233 / HTTP 206 Partial Content) for instant video/audio seeking and resumable downloads
   - Dynamic Google Drive client resolution
   - `jsonwebtoken` (JWT) authentication & `bcryptjs` password hashing
@@ -163,6 +164,7 @@ npm run dev:frontend
 
 ## 🔒 Security & Streaming Details
 
+- Uploads are staged in `uploads/.tmp` and streamed from disk to Google Drive. Ensure the backend has enough free disk space for active uploads; the backend permits up to six hours for request bodies, but a hosting provider or reverse proxy may enforce a smaller size or timeout limit.
 - **HTTP 206 Partial Content**: Full support for HTTP `Range` headers, enabling video/audio scrubbing and seeking in preview players, along with resumable multi-thread downloads.
 - **Protected API Endpoints**: All `/api/drive/*` routes validate a signed JWT Bearer token in the `Authorization` header.
 - **Idle Session Expiry**: Login sessions expire after 12 hours without user activity and extend while the user remains active.
