@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { SearchBar } from '../components/SearchBar';
 import { FileRow } from '../components/FileRow';
 import { FileCard } from '../components/FileCard';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ContextMenu } from '../components/ContextMenu';
 import { RenameModal } from '../components/RenameModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
@@ -49,6 +48,12 @@ import {
   ArrowUp,
 } from 'lucide-react';
 import { isExternalFileDrag } from '../utils/dragAndDrop';
+
+const FilePreviewModal = React.lazy(() =>
+  import('../components/FilePreviewModal').then((module) => ({
+    default: module.FilePreviewModal,
+  })),
+);
 
 const SORT_PREFERENCES_KEY = 'vault_sort_preferences';
 
@@ -450,6 +455,12 @@ export const Dashboard: React.FC = () => {
     setSelectedFileIds(new Set());
   };
 
+  const handleNavigateBack = () => {
+    if (breadcrumbs.length <= 1) return;
+    const previousIndex = breadcrumbs.length - 2;
+    handleSelectBreadcrumb(breadcrumbs[previousIndex].id, previousIndex);
+  };
+
   // Handle Sync Drive trigger
   const handleSyncDrive = async (folderId?: string) => {
     setSyncStatus('syncing');
@@ -466,7 +477,9 @@ export const Dashboard: React.FC = () => {
       // rather than leaving the explorer in the vault-wide search mode.
       setSearchScope('folder');
       setSearchQuery('');
-      await fetchFiles(currentFolderId, 'folder');
+      if (searchScope === 'folder') {
+        await fetchFiles(currentFolderId, 'folder');
+      }
       await fetchVaultStats();
       setSyncStatus('idle');
       setTimeout(() => setSyncMessage(null), 8000);
@@ -720,6 +733,84 @@ export const Dashboard: React.FC = () => {
 
     return result;
   }, [files, searchQuery, searchScope, filterType, sortBy, sortOrder]);
+
+  const handleFileListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+
+    const currentItem = target.closest<HTMLElement>('[data-vault-file-item="true"]');
+    if (!currentItem) return;
+
+    if (
+      (event.key === 'Backspace' || (event.altKey && event.key === 'ArrowLeft')) &&
+      breadcrumbs.length > 1
+    ) {
+      event.preventDefault();
+      handleNavigateBack();
+      return;
+    }
+
+    const shouldMove =
+      event.key === 'Home' ||
+      event.key === 'End' ||
+      (isGrid && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) ||
+      (!isGrid && ['ArrowUp', 'ArrowDown'].includes(event.key));
+    if (!shouldMove) return;
+
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>('[data-vault-file-item="true"]'),
+    );
+    const currentIndex = items.indexOf(currentItem);
+    if (currentIndex < 0 || items.length < 2) return;
+
+    event.preventDefault();
+    if (event.key === 'Home') {
+      items[0].focus();
+      return;
+    }
+    if (event.key === 'End') {
+      items[items.length - 1].focus();
+      return;
+    }
+
+    if (!isGrid) {
+      const nextIndex = currentIndex + (event.key === 'ArrowUp' ? -1 : 1);
+      items[Math.max(0, Math.min(items.length - 1, nextIndex))].focus();
+      return;
+    }
+
+    const currentRect = currentItem.getBoundingClientRect();
+    const currentCenter = {
+      x: currentRect.left + currentRect.width / 2,
+      y: currentRect.top + currentRect.height / 2,
+    };
+    const directions: Record<string, { x: number; y: number }> = {
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+    };
+    const direction = directions[event.key];
+    if (!direction) return;
+
+    let nearestItem: HTMLElement | undefined;
+    let nearestScore = Infinity;
+    items.forEach((item) => {
+      if (item === currentItem) return;
+      const rect = item.getBoundingClientRect();
+      const dx = rect.left + rect.width / 2 - currentCenter.x;
+      const dy = rect.top + rect.height / 2 - currentCenter.y;
+      const primaryDistance = dx * direction.x + dy * direction.y;
+      const crossDistance = Math.abs(dx * direction.y - dy * direction.x);
+      const score = primaryDistance + crossDistance * 1.5;
+      if (primaryDistance > 0 && score < nearestScore) {
+        nearestItem = item;
+        nearestScore = score;
+      }
+    });
+
+    nearestItem?.focus();
+  };
 
   const isAllSelected =
     filteredFiles.length > 0 &&
@@ -1020,13 +1111,25 @@ export const Dashboard: React.FC = () => {
 
       {/* Modals */}
       {previewFile && (
-        <FilePreviewModal
-          file={previewFile}
-          filesList={filteredFiles}
-          onClose={() => setPreviewFile(null)}
-          onDownloadFile={handleDownloadFile}
-          onNavigateFile={(nextFile) => setPreviewFile(nextFile)}
-        />
+        <Suspense
+          fallback={
+            <div
+              role="status"
+              aria-live="polite"
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 text-white"
+            >
+              Loading preview...
+            </div>
+          }
+        >
+          <FilePreviewModal
+            file={previewFile}
+            filesList={filteredFiles}
+            onClose={() => setPreviewFile(null)}
+            onDownloadFile={handleDownloadFile}
+            onNavigateFile={(nextFile) => setPreviewFile(nextFile)}
+          />
+        </Suspense>
       )}
 
       {isAdmin && (
@@ -1259,6 +1362,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Content Explorer Container (LAY-001, LAY-002, TST-001) */}
         <div
+          onKeyDown={handleFileListKeyDown}
           style={{ marginTop: 'var(--space-4)' }}
           className={`glass-explorer relative min-h-[400px] rounded-2xl border glass-panel transition-colors ${
             isDragging ? 'border-teal-400 bg-teal-500/[0.08]' : 'border-outline/[0.05] bg-surface/60'

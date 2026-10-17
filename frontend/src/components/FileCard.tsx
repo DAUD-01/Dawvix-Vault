@@ -119,6 +119,7 @@ export const FileCard: React.FC<FileCardProps> = ({
     >
       <button
         type="button"
+        data-vault-file-item="true"
         onClick={handleClick}
         aria-label={`${file.isFolder ? 'Open folder' : 'Preview file'} ${file.name}`}
         className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--color-primary)]"

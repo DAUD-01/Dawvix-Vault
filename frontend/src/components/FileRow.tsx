@@ -166,6 +166,7 @@ export const FileRow: React.FC<FileRowProps> = ({
         }
       }}
       onContextMenu={handleContextMenu}
+      data-vault-file-item="true"
       tabIndex={0}
       aria-selected={isSelected}
       className={`group cursor-pointer border-b border-outline/[0.07] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--color-primary)] ${
