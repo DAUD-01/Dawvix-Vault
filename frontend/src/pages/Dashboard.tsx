@@ -906,7 +906,7 @@ export const Dashboard: React.FC = () => {
         <div
           role="status"
           aria-live="polite"
-          className="fixed right-4 top-[calc(var(--header-h)+1rem)] z-[70] w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-outline/15 bg-surface/95 p-4 text-on-surface shadow-2xl ring-1 ring-black/10 backdrop-blur-xl sm:right-6"
+          className="fixed bottom-6 right-4 z-[70] w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-outline/15 bg-surface/95 p-4 text-on-surface shadow-2xl ring-1 ring-black/10 backdrop-blur-xl sm:right-6"
         >
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
@@ -945,7 +945,8 @@ export const Dashboard: React.FC = () => {
         role="status"
         aria-live="polite"
         aria-atomic="false"
-        className="pointer-events-none fixed bottom-6 right-6 z-50 flex max-w-sm flex-col gap-2"
+        className="pointer-events-none fixed right-4 z-50 flex max-w-sm flex-col gap-2 sm:right-6"
+        style={{ bottom: uploadProgress ? '7rem' : '1.5rem' }}
       >
         {toasts.map((toast) => (
           <div
