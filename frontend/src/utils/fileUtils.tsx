@@ -27,24 +27,110 @@ export interface FileTypeMeta {
   label: string;
 }
 
-const CODE_FILE_EXTENSIONS = new Set([
-  'asm', 'astro', 'bash', 'c', 'cc', 'class', 'clj', 'cljs', 'cljc', 'cmd',
-  'coffee', 'cpp', 'cr', 'cs', 'css', 'csh', 'cxx', 'dart', 'diff', 'dockerfile',
-  'ex', 'exs', 'fish', 'fs', 'fsi', 'fsx', 'go', 'gradle', 'groovy', 'h',
-  'haml', 'hh', 'hpp', 'hs', 'hxx', 'ipynb', 'java', 'jl', 'js', 'json', 'jsx', 'kt', 'kts',
-  'less', 'lua', 'm', 'makefile', 'ml', 'mli', 'mm', 'pl', 'pm', 'php', 'phtml',
-  'ps1', 'psm1', 'py', 'pyi', 'r', 'rb', 'rake', 'rmd', 'rs', 'sass', 'scala',
-  'sc', 'scss', 'sh', 'sql', 'swift', 't', 'ts', 'tsx', 'vb', 'vbs', 'vue',
-  'wasm', 'xml', 'xquery', 'y', 'yaml', 'yml', 'zig',
-]);
+const CODE_FILE_TYPES: Record<string, { label: string; shorthand: string }> = {
+  asm: { label: 'Assembly', shorthand: 'ASM' },
+  astro: { label: 'Astro', shorthand: 'AST' },
+  bash: { label: 'Bash', shorthand: 'SH' },
+  c: { label: 'C', shorthand: 'C' },
+  cc: { label: 'C++', shorthand: 'C++' },
+  class: { label: 'Java Bytecode', shorthand: 'JVM' },
+  clj: { label: 'Clojure', shorthand: 'CLJ' },
+  cljs: { label: 'ClojureScript', shorthand: 'CLJS' },
+  cljc: { label: 'Clojure', shorthand: 'CLJ' },
+  coffee: { label: 'CoffeeScript', shorthand: 'COF' },
+  cmd: { label: 'Batch Script', shorthand: 'BAT' },
+  cpp: { label: 'C++', shorthand: 'C++' },
+  cs: { label: 'C#', shorthand: 'C#' },
+  css: { label: 'CSS', shorthand: 'CSS' },
+  csh: { label: 'C Shell', shorthand: 'CSH' },
+  cxx: { label: 'C++', shorthand: 'C++' },
+  dart: { label: 'Dart', shorthand: 'DART' },
+  diff: { label: 'Diff', shorthand: 'DIFF' },
+  dockerignore: { label: 'Docker Ignore', shorthand: 'DOCK' },
+  dockerfile: { label: 'Dockerfile', shorthand: 'DOCK' },
+  env: { label: 'Environment Config', shorthand: 'ENV' },
+  ex: { label: 'Elixir', shorthand: 'EX' },
+  exs: { label: 'Elixir', shorthand: 'EX' },
+  fish: { label: 'Fish Shell', shorthand: 'FISH' },
+  fs: { label: 'F#', shorthand: 'F#' },
+  fsi: { label: 'F# Interactive', shorthand: 'FSI' },
+  fsx: { label: 'F# Script', shorthand: 'FSX' },
+  go: { label: 'Go', shorthand: 'GO' },
+  gradle: { label: 'Gradle', shorthand: 'GR' },
+  gitignore: { label: 'Git Ignore', shorthand: 'GIT' },
+  groovy: { label: 'Groovy', shorthand: 'GRV' },
+  h: { label: 'C/C++ Header', shorthand: 'H' },
+  haml: { label: 'Haml', shorthand: 'HAML' },
+  hh: { label: 'C++ Header', shorthand: 'HH' },
+  hpp: { label: 'C++ Header', shorthand: 'HPP' },
+  hs: { label: 'Haskell', shorthand: 'HS' },
+  html: { label: 'HTML', shorthand: 'HTML' },
+  hxx: { label: 'C++ Header', shorthand: 'HXX' },
+  ini: { label: 'INI', shorthand: 'INI' },
+  ipynb: { label: 'Jupyter Notebook', shorthand: 'NB' },
+  java: { label: 'Java', shorthand: 'JAVA' },
+  jl: { label: 'Julia', shorthand: 'JL' },
+  js: { label: 'JavaScript', shorthand: 'JS' },
+  json: { label: 'JSON', shorthand: '{}' },
+  json5: { label: 'JSON5', shorthand: 'J5' },
+  jsonc: { label: 'JSONC', shorthand: 'JC' },
+  jsx: { label: 'React JSX', shorthand: 'JSX' },
+  kt: { label: 'Kotlin', shorthand: 'KT' },
+  kts: { label: 'Kotlin Script', shorthand: 'KTS' },
+  less: { label: 'Less', shorthand: 'LESS' },
+  lua: { label: 'Lua', shorthand: 'LUA' },
+  m: { label: 'Objective-C', shorthand: 'OC' },
+  makefile: { label: 'Makefile', shorthand: 'MK' },
+  md: { label: 'Markdown', shorthand: 'MD' },
+  markdown: { label: 'Markdown', shorthand: 'MD' },
+  mli: { label: 'OCaml Interface', shorthand: 'MLI' },
+  ml: { label: 'OCaml', shorthand: 'ML' },
+  mm: { label: 'Objective-C++', shorthand: 'OC++' },
+  pl: { label: 'Perl', shorthand: 'PL' },
+  pm: { label: 'Perl Module', shorthand: 'PM' },
+  php: { label: 'PHP', shorthand: 'PHP' },
+  phtml: { label: 'PHP', shorthand: 'PHP' },
+  psm1: { label: 'PowerShell Module', shorthand: 'PSM' },
+  ps1: { label: 'PowerShell', shorthand: 'PS' },
+  py: { label: 'Python', shorthand: 'PY' },
+  pyi: { label: 'Python Stub', shorthand: 'PYI' },
+  r: { label: 'R', shorthand: 'R' },
+  rake: { label: 'Ruby Rakefile', shorthand: 'RB' },
+  rb: { label: 'Ruby', shorthand: 'RB' },
+  rmd: { label: 'R Markdown', shorthand: 'RMD' },
+  rs: { label: 'Rust', shorthand: 'RS' },
+  sass: { label: 'Sass', shorthand: 'SASS' },
+  scala: { label: 'Scala', shorthand: 'SC' },
+  sc: { label: 'Scala', shorthand: 'SC' },
+  scss: { label: 'SCSS', shorthand: 'SCSS' },
+  sh: { label: 'Shell Script', shorthand: 'SH' },
+  sql: { label: 'SQL', shorthand: 'SQL' },
+  swift: { label: 'Swift', shorthand: 'SW' },
+  t: { label: 'Perl Test', shorthand: 'T' },
+  ts: { label: 'TypeScript', shorthand: 'TS' },
+  tsx: { label: 'React TSX', shorthand: 'TSX' },
+  toml: { label: 'TOML', shorthand: 'TOML' },
+  vb: { label: 'Visual Basic', shorthand: 'VB' },
+  vbs: { label: 'VBScript', shorthand: 'VBS' },
+  vue: { label: 'Vue', shorthand: 'VUE' },
+  xml: { label: 'XML', shorthand: 'XML' },
+  xquery: { label: 'XQuery', shorthand: 'XQ' },
+  y: { label: 'Yacc', shorthand: 'Y' },
+  yaml: { label: 'YAML', shorthand: 'YML' },
+  yml: { label: 'YAML', shorthand: 'YML' },
+  zig: { label: 'Zig', shorthand: 'ZIG' },
+};
 
 const getFileExtension = (fileName: string): string =>
   fileName.toLowerCase().split('.').pop() || '';
 
+export const getCodeFileType = (fileName: string) =>
+  CODE_FILE_TYPES[getFileExtension(fileName)];
+
 export const isCodeFile = (mimeType: string, fileName: string): boolean => {
   const mime = mimeType.toLowerCase();
   return (
-    CODE_FILE_EXTENSIONS.has(getFileExtension(fileName)) ||
+    Boolean(getCodeFileType(fileName)) ||
     mime.includes('code') ||
     mime.includes('json') ||
     mime.includes('javascript') ||
@@ -105,11 +191,12 @@ export const getFileTypeMeta = (
   const mime = mimeType.toLowerCase();
 
   if (isCodeFile(mime, fileName)) {
+    const codeType = getCodeFileType(fileName);
     return {
       color: colors.code,
       bg: 'bg-teal-500/10',
       border: 'border-teal-500/25',
-      label: 'Code',
+      label: codeType?.label || 'Code',
     };
   }
 
@@ -210,6 +297,17 @@ export const getFileIcon = (
   const mime = mimeType.toLowerCase();
 
   if (isCodeFile(mime, fileName)) {
+    const codeType = getCodeFileType(fileName);
+    if (codeType) {
+      return (
+        <span
+          aria-hidden="true"
+          className={`${sizeClass} inline-flex items-center justify-center overflow-hidden font-mono text-[0.55em] font-bold leading-none tracking-tight ${color}`}
+        >
+          {codeType.shorthand}
+        </span>
+      );
+    }
     return <FileCode className={`${sizeClass} ${color}`} />;
   }
 

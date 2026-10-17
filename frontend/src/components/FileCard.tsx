@@ -3,6 +3,7 @@ import { FileItem } from '../types';
 import { formatBytes, getFileBadge, getFileTypeMeta } from '../utils/fileUtils';
 import { useTheme } from '../context/ThemeContext';
 import { MoreVertical } from 'lucide-react';
+import { getDraggedItemIds, isExternalFileDrag, setDraggedItemIds } from '../utils/dragAndDrop';
 
 interface FileCardProps {
   file: FileItem;
@@ -15,6 +16,7 @@ interface FileCardProps {
   onPreviewFile: (file: FileItem) => void;
   onContextMenu?: (e: React.MouseEvent, file: FileItem) => void;
   onDropOnFolder?: (targetFolderId: string, itemIds: string[]) => void;
+  onUploadToFolder?: (targetFolderId: string, files: File[]) => void;
 }
 
 export const FileCard: React.FC<FileCardProps> = ({
@@ -28,6 +30,7 @@ export const FileCard: React.FC<FileCardProps> = ({
   onPreviewFile,
   onContextMenu,
   onDropOnFolder,
+  onUploadToFolder,
 }) => {
   const { mode } = useTheme();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -55,37 +58,40 @@ export const FileCard: React.FC<FileCardProps> = ({
       selectedFileIds && selectedFileIds.has(file.driveId)
         ? Array.from(selectedFileIds)
         : [file.driveId];
-    e.dataTransfer.setData('application/json', JSON.stringify(itemIds));
-    e.dataTransfer.effectAllowed = 'move';
+    setDraggedItemIds(e.dataTransfer, itemIds);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     if (canEdit && file.isFolder) {
+      const externalFiles = isExternalFileDrag(e.dataTransfer);
+      const internalItems = e.dataTransfer.types.includes('application/x-dawvix-vault-items')
+        || e.dataTransfer.types.includes('application/json');
+      if (!externalFiles && !internalItems) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = externalFiles ? 'copy' : 'move';
       setIsDragOver(true);
     }
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
     setIsDragOver(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     if (!canEdit || !file.isFolder) return;
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
-    try {
-      const dataStr = e.dataTransfer.getData('application/json');
-      if (dataStr && onDropOnFolder) {
-        const itemIds = JSON.parse(dataStr);
-        if (Array.isArray(itemIds) && itemIds.length > 0) {
-          onDropOnFolder(file.driveId, itemIds);
-        }
-      }
-    } catch (err) {
-      console.warn('Drop error:', err);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0) {
+      onUploadToFolder?.(file.driveId, droppedFiles);
+      return;
     }
+
+    const itemIds = getDraggedItemIds(e.dataTransfer).filter((itemId) => itemId !== file.driveId);
+    if (itemIds.length > 0) onDropOnFolder?.(file.driveId, itemIds);
   };
 
   const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder, mode, file.name);
@@ -97,6 +103,7 @@ export const FileCard: React.FC<FileCardProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onDragEnd={() => setIsDragOver(false)}
       onContextMenu={handleContextMenu}
       data-selected={isSelected}
       data-drag-over={isDragOver}

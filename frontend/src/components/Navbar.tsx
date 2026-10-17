@@ -49,7 +49,8 @@ interface NavbarProps {
   showBreadcrumbs: boolean;
   breadcrumbs: BreadcrumbItem[];
   onSelectFolder: (folderId: string, index: number) => void;
-  onDropOnFolder: (targetFolderId: string, itemIds: string[]) => void;
+  onDropOnFolder?: (targetFolderId: string, itemIds: string[]) => void;
+  onUploadToFolder?: (targetFolderId: string, files: File[]) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -62,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   breadcrumbs,
   onSelectFolder,
   onDropOnFolder,
+  onUploadToFolder,
 }) => {
   const { user, logout } = useAuth();
   const {
@@ -231,6 +233,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   items={breadcrumbs}
                   onSelectFolder={onSelectFolder}
                   onDropOnFolder={onDropOnFolder}
+                  onUploadToFolder={onUploadToFolder}
                 />
               </div>
             </>

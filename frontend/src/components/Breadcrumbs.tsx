@@ -1,17 +1,20 @@
 import React, { Fragment, useMemo, useState } from 'react';
 import { BreadcrumbItem } from '../types';
 import { ChevronRight, ChevronDown, MoreHorizontal } from 'lucide-react';
+import { getDraggedItemIds, isExternalFileDrag } from '../utils/dragAndDrop';
 
 interface BreadcrumbsProps {
   items: BreadcrumbItem[];
   onSelectFolder: (folderId: string, index: number) => void;
   onDropOnFolder?: (targetFolderId: string, itemIds: string[]) => void;
+  onUploadToFolder?: (targetFolderId: string, files: File[]) => void;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   items,
   onSelectFolder,
   onDropOnFolder,
+  onUploadToFolder,
 }) => {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
@@ -32,29 +35,37 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     if (index === navItems[navItems.length - 1].breadcrumbIndex) return;
+    const externalFiles = isExternalFileDrag(e.dataTransfer);
+    const internalItems = e.dataTransfer.types.includes('application/x-dawvix-vault-items')
+      || e.dataTransfer.types.includes('application/json');
+    if ((externalFiles && !onUploadToFolder) || (internalItems && !onDropOnFolder)) return;
+    if (!externalFiles && !internalItems) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = externalFiles ? 'copy' : 'move';
     setDragOverIndex(index);
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent<HTMLButtonElement>) => {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
     setDragOverIndex(null);
   };
 
   const handleDrop = (e: React.DragEvent, folderId: string, index: number) => {
     if (index === navItems[navItems.length - 1].breadcrumbIndex) return;
-    e.preventDefault();
-    setDragOverIndex(null);
-    try {
-      const dataStr = e.dataTransfer.getData('application/json');
-      if (dataStr && onDropOnFolder) {
-        const parsed = JSON.parse(dataStr);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          onDropOnFolder(folderId, parsed);
-        }
-      }
-    } catch (err) {
-      console.warn('Drop parse error:', err);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0 && onUploadToFolder) {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOverIndex(null);
+      onUploadToFolder(folderId, droppedFiles);
+      return;
+    }
+    const itemIds = getDraggedItemIds(e.dataTransfer).filter((itemId) => itemId !== folderId);
+    if (itemIds.length > 0 && onDropOnFolder) {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOverIndex(null);
+      onDropOnFolder(folderId, itemIds);
     }
   };
 

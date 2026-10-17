@@ -11,7 +11,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { FileItem } from "../types";
 import { driveService } from "../services/api";
-import { getFileBadge, getFileIcon, formatBytes } from "../utils/fileUtils";
+import { getCodeFileType, getFileBadge, getFileIcon, formatBytes } from "../utils/fileUtils";
 import {
   X,
   Download,
@@ -95,7 +95,7 @@ const getCodeLanguage = (filename: string): string | undefined =>
   CODE_LANGUAGE_BY_EXTENSION[getFileExtension(filename)];
 
 const isPreviewableTextFile = (filename: string): boolean =>
-  TEXT_FILE_EXTENSIONS.has(getFileExtension(filename));
+  TEXT_FILE_EXTENSIONS.has(getFileExtension(filename)) || Boolean(getCodeFileType(filename));
 
 // --- NEW: Dedicated Component for Premium Code Blocks ---
 const CodeBlock = ({

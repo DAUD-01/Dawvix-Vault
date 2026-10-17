@@ -6,10 +6,17 @@ import {
   List,
   Filter,
   ArrowUpDown,
-  ChevronDown,
   Globe,
   Folder,
   History,
+  Archive,
+  AudioLines,
+  Check,
+  Code2,
+  FileSpreadsheet,
+  FileText,
+  Images,
+  Presentation,
 } from "lucide-react";
 import { SortBy, SortOrder, SearchScope } from "../types";
 
@@ -100,8 +107,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const fallbackRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef || fallbackRef;
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const filterSortRef = useRef<HTMLDivElement>(null);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
+  const sortTriggerRef = useRef<HTMLButtonElement>(null);
 
   const [showRecentDropdown, setShowRecentDropdown] = useState(false);
+  const [openMenu, setOpenMenu] = useState<"filter" | "sort" | null>(null);
   const {
     searches: recentSearches,
     addSearch,
@@ -109,6 +120,28 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   } = useRecentSearches(RECENT_SEARCHES_KEY);
 
   const currentSortKey = `${sortBy}_${sortOrder}`;
+  const filterOptions = [
+    { id: "all", label: "All files", hint: "Every item", Icon: FileText },
+    { id: "folders", label: "Folders", hint: "Directories", Icon: Folder },
+    { id: "pdf", label: "PDF", hint: "PDF documents", Icon: FileText },
+    { id: "documents", label: "Docs", hint: "Text and documents", Icon: FileText },
+    { id: "spreadsheets", label: "Sheets", hint: "Spreadsheets", Icon: FileSpreadsheet },
+    { id: "presentations", label: "Slides", hint: "Presentations", Icon: Presentation },
+    { id: "images", label: "Images", hint: "Pictures and graphics", Icon: Images },
+    { id: "media", label: "Audio & video", hint: "Media files", Icon: AudioLines },
+    { id: "archives", label: "Archives", hint: "Compressed files", Icon: Archive },
+    { id: "code", label: "Code", hint: "All programming languages", Icon: Code2 },
+  ];
+  const sortOptions = [
+    { id: "name_asc", label: "Name", hint: "A to Z" },
+    { id: "name_desc", label: "Name", hint: "Z to A" },
+    { id: "size_desc", label: "Size", hint: "Largest first" },
+    { id: "size_asc", label: "Size", hint: "Smallest first" },
+    { id: "lastSyncedAt_desc", label: "Date added", hint: "Newest first" },
+    { id: "lastSyncedAt_asc", label: "Date added", hint: "Oldest first" },
+    { id: "mimeType_asc", label: "File type", hint: "A to Z" },
+    { id: "mimeType_desc", label: "File type", hint: "Z to A" },
+  ];
 
   // Global hotkey to focus search (Press '/')
   useEffect(() => {
@@ -139,6 +172,50 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!openMenu) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!filterSortRef.current?.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpenMenu(null);
+      (openMenu === "filter" ? filterTriggerRef : sortTriggerRef).current?.focus();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [openMenu]);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const root = filterSortRef.current;
+    const selector = `[data-dropdown="${openMenu}"] [aria-selected="true"]`;
+    root?.querySelector<HTMLButtonElement>(selector)?.focus();
+  }, [openMenu]);
+
+  const handleOptionKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const options = Array.from(
+      event.currentTarget.closest('[role="listbox"]')?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [],
+    );
+    const currentIndex = options.indexOf(event.currentTarget);
+    let nextIndex: number;
+    if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = options.length - 1;
+    else if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % options.length;
+    else if (event.key === "ArrowUp") nextIndex = (currentIndex + options.length - 1) % options.length;
+    else return;
+
+    event.preventDefault();
+    options[nextIndex]?.focus();
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -182,18 +259,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     onScopeChange(nextIndex === 0 ? "folder" : "vault");
   };
 
-  const categories = [
-    { id: "all", label: "All" },
-    { id: "folders", label: "Folders" },
-    { id: "pdf", label: "PDF" },
-    { id: "documents", label: "Docs" },
-    { id: "spreadsheets", label: "Sheets" },
-    { id: "presentations", label: "Slides" },
-    { id: "images", label: "Images" },
-    { id: "media", label: "Audio & video" },
-    { id: "archives", label: "Archives" },
-    { id: "code", label: "Code" },
-  ];
   return (
     <div className="relative flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div ref={dropdownRef} className="relative flex w-full min-w-0 flex-1 items-center gap-2">
@@ -308,63 +373,144 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <label
-          className={`relative flex h-[var(--control-h)] items-center gap-2 rounded-[var(--control-radius)] border px-2.5 transition-colors focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
-            filterType !== "all"
-              ? "border-[color:var(--color-primary-soft-border)] bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
-              : "border-[color:var(--color-border-control)] bg-surface-variant text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)]"
-          }`}
-        >
-          <Filter className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="hidden text-xs font-medium sm:inline">Filter</span>
-          <select
-            name="file-type-filter"
-            autoComplete="off"
-            id="file-type-filter"
-            value={filterType}
-            onChange={(event) => onFilterChange(event.target.value)}
-            aria-label="Filter files by type"
-            className="max-w-[125px] cursor-pointer appearance-none bg-transparent pr-5 text-xs font-medium text-[color:var(--color-text-primary)] outline-none"
+      <div ref={filterSortRef} className="flex shrink-0 items-center gap-2">
+        <div className="relative flex h-[var(--control-h)] w-[var(--control-h)] shrink-0 items-center justify-center">
+          <button
+            ref={filterTriggerRef}
+            type="button"
+            onClick={() => setOpenMenu((open) => open === "filter" ? null : "filter")}
+            aria-label="Filter files"
+            aria-haspopup="listbox"
+            aria-expanded={openMenu === "filter"}
+            aria-controls="file-type-menu"
+            className={`flex h-full w-full items-center justify-center rounded-[var(--control-radius)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40 ${
+              filterType !== "all"
+                ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+                : "text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+            }`}
           >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5" aria-hidden="true" />
-        </label>
+            {filterType !== "all" && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--color-accent)] px-1 text-[11px] font-semibold leading-none text-[color:var(--color-on-primary)]">
+                1
+              </span>
+            )}
+            <Filter className="h-4 w-4" aria-hidden="true" />
+          </button>
+          {openMenu === "filter" && (
+            <div
+              id="file-type-menu"
+              role="listbox"
+              aria-label="Filter files by type"
+              data-dropdown="filter"
+              className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-outline/15 bg-surface/95 p-1.5 shadow-2xl ring-1 ring-black/10 backdrop-blur-xl"
+            >
+              <div className="px-2.5 pb-2 pt-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-muted)]">Filter files</p>
+                <p className="mt-0.5 text-xs text-[color:var(--color-text-primary)]">Choose a file category</p>
+              </div>
+              <div className="max-h-[min(60vh,360px)] overflow-y-auto">
+                {filterOptions.map(({ id, label, hint, Icon }) => {
+                  const selected = filterType === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onKeyDown={handleOptionKeyDown}
+                      onClick={() => {
+                        onFilterChange(id);
+                        setOpenMenu(null);
+                        filterTriggerRef.current?.focus();
+                      }}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--color-accent)] ${
+                        selected
+                          ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-text-primary)]"
+                          : "text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+                      }`}
+                    >
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${selected ? "bg-[color:var(--color-primary-soft-border)] text-[color:var(--color-primary)]" : "bg-surface-variant text-[color:var(--color-text-muted)]"}`}>
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium">{label}</span>
+                        <span className="mt-0.5 block truncate text-[10px] text-[color:var(--color-text-muted)]">{hint}</span>
+                      </span>
+                      {selected && <Check className="h-4 w-4 shrink-0 text-[color:var(--color-primary)]" aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
-        <label
-          className={`relative flex h-[var(--control-h)] items-center gap-2 rounded-[var(--control-radius)] border px-2.5 transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
-            !isDefaultSort
-              ? "border-[color:var(--color-primary-soft-border)] bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
-              : "border-[color:var(--color-border-control)] bg-surface-variant text-[color:var(--color-text-muted)]"
-          }`}
-          data-active={!isDefaultSort}
-        >
-          <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="hidden text-xs font-medium sm:inline">Sort</span>
-          <select
-            name="sort-results"
-            autoComplete="off"
-            value={currentSortKey}
-            onChange={(e) => handleSortSelect(e.target.value)}
-            className="max-w-[140px] cursor-pointer appearance-none bg-transparent pr-5 text-xs font-medium text-[color:var(--color-text-primary)] outline-none"
+        <div className="relative flex h-[var(--control-h)] w-[var(--control-h)] shrink-0 items-center justify-center">
+          <button
+            ref={sortTriggerRef}
+            type="button"
+            onClick={() => setOpenMenu((open) => open === "sort" ? null : "sort")}
             aria-label="Sort files"
+            aria-haspopup="listbox"
+            aria-expanded={openMenu === "sort"}
+            aria-controls="sort-menu"
+            className={`flex h-full w-full items-center justify-center rounded-[var(--control-radius)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40 ${
+              !isDefaultSort
+                ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+                : "text-[color:var(--color-text-muted)]"
+            }`}
           >
-            <option value="name_asc">Name (A → Z)</option>
-            <option value="name_desc">Name (Z → A)</option>
-            <option value="size_desc">Size (Largest)</option>
-            <option value="size_asc">Size (Smallest)</option>
-            <option value="lastSyncedAt_desc">Date (Newest)</option>
-            <option value="lastSyncedAt_asc">Date (Oldest)</option>
-            <option value="mimeType_asc">Type (A → Z)</option>
-            <option value="mimeType_desc">Type (Z → A)</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5" aria-hidden="true" />
-        </label>
+            {!isDefaultSort && <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[color:var(--color-accent)]" aria-hidden="true" />}
+            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+          </button>
+          {openMenu === "sort" && (
+            <div
+              id="sort-menu"
+              role="listbox"
+              aria-label="Sort files"
+              data-dropdown="sort"
+              className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-outline/15 bg-surface/95 p-1.5 shadow-2xl ring-1 ring-black/10 backdrop-blur-xl"
+            >
+              <div className="px-2.5 pb-2 pt-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-muted)]">Sort results</p>
+                <p className="mt-0.5 text-xs text-[color:var(--color-text-primary)]">Order files by</p>
+              </div>
+              <div role="group" aria-label="Sort order">
+                {sortOptions.map(({ id, label, hint }) => {
+                  const selected = currentSortKey === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onKeyDown={handleOptionKeyDown}
+                      onClick={() => {
+                        handleSortSelect(id);
+                        setOpenMenu(null);
+                        sortTriggerRef.current?.focus();
+                      }}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--color-accent)] ${
+                        selected
+                          ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-text-primary)]"
+                          : "text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+                      }`}
+                    >
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-semibold ${selected ? "bg-[color:var(--color-primary-soft-border)] text-[color:var(--color-primary)]" : "bg-surface-variant text-[color:var(--color-text-muted)]"}`}>
+                        {id.endsWith("_asc") ? "↑" : "↓"}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium">{label}</span>
+                        <span className="mt-0.5 block text-[10px] text-[color:var(--color-text-muted)]">{hint}</span>
+                      </span>
+                      {selected && <Check className="h-4 w-4 shrink-0 text-[color:var(--color-primary)]" aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex h-[var(--control-h)] shrink-0 items-center rounded-[var(--control-radius)] bg-surface-variant/60 p-1">
           <button

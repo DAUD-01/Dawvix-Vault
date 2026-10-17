@@ -34,6 +34,49 @@ const getData = async <T>(
   }
 };
 
+const uploadWithProgress = (
+  formData: FormData,
+  onProgress: (percent: number) => void,
+): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', `${API_BASE_URL}/drive/upload`);
+    const token = localStorage.getItem('token');
+    if (token) request.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    request.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.min(99, Math.floor((event.loaded / event.total) * 100)));
+      }
+    });
+    request.addEventListener('load', () => {
+      let responseData: unknown;
+      try {
+        responseData = JSON.parse(request.responseText);
+      } catch {
+        reject(new Error(`Upload failed with status ${request.status}: invalid server response.`));
+        return;
+      }
+
+      if (request.status >= 200 && request.status < 300) {
+        onProgress(100);
+        resolve(responseData);
+        return;
+      }
+
+      if (request.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('sessionLastActivity');
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
+      reject({ response: { data: responseData } });
+    });
+    request.addEventListener('error', () => reject(new Error('Upload failed because of a network error.')));
+    request.addEventListener('abort', () => reject(new Error('Upload was cancelled.')));
+    request.send(formData);
+  });
+
 // Intercept requests to attach Authorization header
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -148,7 +191,11 @@ export const driveService = {
     return response.data;
   },
 
-  uploadFiles: async (files: File[], parentId?: string): Promise<any> => {
+  uploadFiles: async (
+    files: File[],
+    parentId?: string,
+    onProgress?: (percent: number) => void,
+  ): Promise<any> => {
     const formData = new FormData();
     if (parentId) {
       formData.append('parentId', parentId);
@@ -156,6 +203,8 @@ export const driveService = {
     files.forEach((file) => {
       formData.append('files', file);
     });
+
+    if (onProgress) return uploadWithProgress(formData, onProgress);
 
     const token = localStorage.getItem('token');
     

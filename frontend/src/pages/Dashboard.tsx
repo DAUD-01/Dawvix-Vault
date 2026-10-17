@@ -48,6 +48,7 @@ import {
   ArrowDown,
   ArrowUp,
 } from 'lucide-react';
+import { isExternalFileDrag } from '../utils/dragAndDrop';
 
 const SORT_PREFERENCES_KEY = 'vault_sort_preferences';
 
@@ -204,6 +205,11 @@ export const Dashboard: React.FC = () => {
 
   // Drag and drop state for desktop file uploads
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    percent: number;
+    fileCount: number;
+  } | null>(null);
+  const uploadInProgressRef = useRef(false);
 
   // Search, scope, filter, sort & display states
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -217,6 +223,7 @@ export const Dashboard: React.FC = () => {
   // Toast notification state
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [uploadRetryFiles, setUploadRetryFiles] = useState<File[]>([]);
+  const [uploadRetryFolderId, setUploadRetryFolderId] = useState<string>('root');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const latestFilesRequestRef = useRef(0);
@@ -294,17 +301,29 @@ export const Dashboard: React.FC = () => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const handleUploadFiles = async (uploadedFiles: File[]) => {
+  const handleUploadFiles = async (
+    uploadedFiles: File[],
+    targetFolderId: string = currentFolderId,
+  ) => {
     if (uploadedFiles.length === 0) return;
+    if (uploadInProgressRef.current) {
+      addToast('Please wait for the current upload to finish.', 'info');
+      return;
+    }
+    uploadInProgressRef.current = true;
     setUploadRetryFiles([]);
+    setUploadProgress({ percent: 0, fileCount: uploadedFiles.length });
     try {
       addToast(`Uploading ${uploadedFiles.length} file(s)...`, 'info');
       await driveService.uploadFiles(
         uploadedFiles,
-        currentFolderId === 'root' ? undefined : currentFolderId
+        targetFolderId === 'root' ? undefined : targetFolderId,
+        (percent) => setUploadProgress({ percent, fileCount: uploadedFiles.length }),
       );
       addToast(`Successfully uploaded ${uploadedFiles.length} file(s)!`, 'success');
-      await fetchFiles(currentFolderId, searchScope);
+      if (targetFolderId === currentFolderId) {
+        await fetchFiles(currentFolderId, searchScope);
+      }
       setUploadRetryFiles([]);
     } catch (err: any) {
       const msg =
@@ -313,7 +332,11 @@ export const Dashboard: React.FC = () => {
         err.message ||
         'Error';
       setUploadRetryFiles(uploadedFiles);
+      setUploadRetryFolderId(targetFolderId);
       addToast(`Upload failed: ${msg}`, 'error');
+    } finally {
+      setUploadProgress(null);
+      uploadInProgressRef.current = false;
     }
   };
 
@@ -873,8 +896,49 @@ export const Dashboard: React.FC = () => {
           showBreadcrumbs={searchScope === 'folder'}
           breadcrumbs={breadcrumbs}
           onSelectFolder={handleSelectBreadcrumb}
-          onDropOnFolder={handleDropOnFolder}
+          onDropOnFolder={isAdmin ? handleDropOnFolder : undefined}
+          onUploadToFolder={isAdmin ? (targetFolderId, droppedFiles) => {
+            void handleUploadFiles(droppedFiles, targetFolderId);
+          } : undefined}
         />
+
+      {uploadProgress && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed right-4 top-[calc(var(--header-h)+1rem)] z-[70] w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-outline/15 bg-surface/95 p-4 text-on-surface shadow-2xl ring-1 ring-black/10 backdrop-blur-xl sm:right-6"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <UploadCloud className="h-4 w-4 shrink-0 text-[color:var(--color-primary)]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold">
+                  Uploading {uploadProgress.fileCount} file{uploadProgress.fileCount === 1 ? '' : 's'}
+                </p>
+                <p className="mt-0.5 text-[10px] text-[color:var(--color-text-muted)]">
+                  {uploadProgress.percent >= 99 ? 'Finishing upload…' : 'Uploading to your vault'}
+                </p>
+              </div>
+            </div>
+            <span className="shrink-0 text-sm font-semibold tabular-nums text-[color:var(--color-primary)]">
+              {uploadProgress.percent}%
+            </span>
+          </div>
+          <div
+            className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-variant"
+            role="progressbar"
+            aria-label="File upload progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={uploadProgress.percent}
+          >
+            <div
+              className="h-full rounded-full bg-[color:var(--color-accent)] transition-[width] duration-150"
+              style={{ width: `${uploadProgress.percent}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Floating Toast Notification Container */}
       <div
@@ -908,7 +972,7 @@ export const Dashboard: React.FC = () => {
                 uploadRetryFiles.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => void handleUploadFiles(uploadRetryFiles)}
+                    onClick={() => void handleUploadFiles(uploadRetryFiles, uploadRetryFolderId)}
                     className="min-h-6 rounded px-2 font-semibold text-[color:var(--color-error)] underline underline-offset-2 hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                   >
                     Retry upload
@@ -1199,13 +1263,13 @@ export const Dashboard: React.FC = () => {
             isDragging ? 'border-teal-400 bg-teal-500/[0.08]' : 'border-outline/[0.05] bg-surface/60'
           }`}
           onDragOver={(e) => {
+            if (!isAdmin || !isExternalFileDrag(e.dataTransfer)) return;
             e.preventDefault();
-            e.stopPropagation();
-            if (isAdmin && !isDragging) setIsDragging(true);
+            e.dataTransfer.dropEffect = 'copy';
+            if (!isDragging) setIsDragging(true);
           }}
           onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+            if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
             setIsDragging(false);
           }}
           onDrop={async (e) => {
@@ -1213,14 +1277,12 @@ export const Dashboard: React.FC = () => {
             e.stopPropagation();
             setIsDragging(false);
             if (!isAdmin) return;
-            const droppedFiles = e.dataTransfer.files;
-            if (droppedFiles && droppedFiles.length > 0) {
-              await handleUploadFiles(Array.from(droppedFiles));
-            }
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            if (droppedFiles.length > 0) await handleUploadFiles(droppedFiles);
           }}
         >
           {isAdmin && isDragging && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-canvas/90">
+            <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-canvas/90">
               <div className="flex flex-col items-center gap-3 text-teal-300">
                 <div className="border border-teal-500/30 bg-teal-500/10 p-4">
                   <Inbox className="h-10 w-10" />
@@ -1324,6 +1386,9 @@ export const Dashboard: React.FC = () => {
                     onPreviewFile={(f) => setPreviewFile(f)}
                     onContextMenu={handleOpenContextMenu}
                     onDropOnFolder={isAdmin ? handleDropOnFolder : undefined}
+                    onUploadToFolder={isAdmin ? (targetFolderId, droppedFiles) => {
+                      void handleUploadFiles(droppedFiles, targetFolderId);
+                    } : undefined}
                   />
                 ))}
               </div>
@@ -1433,6 +1498,9 @@ export const Dashboard: React.FC = () => {
                       onProperties={(f) => setPropertiesModal({ isOpen: true, item: f })}
                       onContextMenu={handleOpenContextMenu}
                       onDropOnFolder={isAdmin ? handleDropOnFolder : undefined}
+                      onUploadToFolder={isAdmin ? (targetFolderId, droppedFiles) => {
+                        void handleUploadFiles(droppedFiles, targetFolderId);
+                      } : undefined}
                       onToast={addToast}
                       parentFolderPath={searchScope === 'vault' ? folderPaths.get(file.driveId) : undefined}
                     />

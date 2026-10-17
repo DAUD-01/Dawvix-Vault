@@ -27,10 +27,13 @@ It serves as an **authenticated streaming proxy** between your client device and
   - Axios with JWT Interceptors & Blob Stream Downloader
   - Deep URL state syncing (`?folder=<id>`) for bookmarking and history
   - In-window Multi-Format File Preview Modal (PDF, images with zoom, video & audio with playback speed controls, and code/text with line numbers & syntax wrapping)
+  - Extension-aware language names and matching file icons, with a unified Code filter across languages
   - Previous / Next keyboard arrow browsing within folders
   - Multi-file batch selection with bulk download and direct link export
+  - Drag files from the desktop into folders, or move selected vault files between folders
+  - Persistent upload progress with percentage completion
   - Global Vault Search vs. Folder-Local Search modes
-  - Sort by Name, Size, Date, and Type (ascending / descending)
+  - Custom filter and sort menus; sort by Name, Size, Date, and Type (ascending / descending)
   - Interactive toast notification system
   - Table / List view and Grid view toggles
   - Route authentication guard (`<ProtectedRoute />`)
