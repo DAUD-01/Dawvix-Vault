@@ -167,9 +167,10 @@ export const FileRow: React.FC<FileRowProps> = ({
       }}
       onContextMenu={handleContextMenu}
       data-vault-file-item="true"
+      data-vault-file-name={file.name}
       tabIndex={0}
       aria-selected={isSelected}
-      className={`group cursor-pointer border-b border-outline/[0.07] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--color-primary)] ${
+      className={`group cursor-pointer border-b border-outline/[0.07] transition-colors focus-visible:outline-none focus-visible:bg-primary-container/20 focus-visible:[box-shadow:inset_3px_0_0_var(--color-primary)] ${
         isDragOver
           ? 'bg-primary-container/40 ring-1 ring-inset ring-primary'
           : isSelected

@@ -232,6 +232,10 @@ export const Dashboard: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const latestFilesRequestRef = useRef(0);
+  const typeAheadRef = useRef<{ query: string; timer: ReturnType<typeof setTimeout> | null }>({
+    query: '',
+    timer: null,
+  });
 
   const handleColumnSort = (column: SortBy) => {
     setSortPreferences((previous) => ({
@@ -880,6 +884,49 @@ export const Dashboard: React.FC = () => {
       const isInsideModal =
         Boolean(document.querySelector('[role="dialog"]')) ||
         (activeEl instanceof HTMLElement && Boolean(activeEl.closest('[role="dialog"]')));
+
+      if (!isInsideModal && !contextMenu.visible && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        const focusedFileItem =
+          activeEl instanceof HTMLElement &&
+          activeEl.closest<HTMLElement>('[data-vault-file-item="true"]');
+        const canSearchFiles =
+          activeEl === document.body ||
+          activeEl === document.documentElement ||
+          Boolean(focusedFileItem) ||
+          (activeEl instanceof HTMLElement &&
+            Boolean(activeEl.closest('.glass-explorer')) &&
+            !activeEl.closest('button, a, input, textarea, select, [role="button"]'));
+
+        if (canSearchFiles) {
+          const previousQuery = typeAheadRef.current.query;
+          const query =
+            previousQuery.length === 1 && previousQuery.toLocaleLowerCase() === e.key.toLocaleLowerCase()
+              ? e.key
+              : `${previousQuery}${e.key}`;
+          typeAheadRef.current.query = query;
+          if (typeAheadRef.current.timer) clearTimeout(typeAheadRef.current.timer);
+          typeAheadRef.current.timer = setTimeout(() => {
+            typeAheadRef.current.query = '';
+            typeAheadRef.current.timer = null;
+          }, 800);
+
+          const fileItems = Array.from(
+            document.querySelectorAll<HTMLElement>('.glass-explorer [data-vault-file-item="true"]'),
+          );
+          const currentIndex = focusedFileItem ? fileItems.indexOf(focusedFileItem) : -1;
+          const normalizedQuery = query.toLocaleLowerCase();
+          const match = [...fileItems.slice(currentIndex + 1), ...fileItems.slice(0, currentIndex + 1)]
+            .find((item) =>
+              (item.dataset.vaultFileName || '').toLocaleLowerCase().startsWith(normalizedQuery),
+            );
+
+          if (match) {
+            e.preventDefault();
+            match.focus();
+          }
+          return;
+        }
+      }
 
       if (!isInsideModal && (isBackNavigationKey || isFileNavigationKey)) {
         if (contextMenu.visible) return;

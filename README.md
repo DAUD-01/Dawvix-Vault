@@ -29,7 +29,7 @@ It serves as an **authenticated streaming proxy** between your client device and
   - In-window Multi-Format File Preview Modal (PDF, images with zoom, video & audio with playback speed controls, and code/text with line numbers & syntax wrapping)
   - Extension-aware language names and matching file icons, with a unified Code filter across languages
   - Previous / Next keyboard arrow browsing within folders
-  - File explorer keyboard navigation: arrow keys to move, Enter to open, and Backspace / Alt+Left to go back
+  - File explorer keyboard navigation: arrow keys to move, type a name prefix to jump to a file, Home/End to jump to list ends, Enter to open, and Backspace / Alt+Left to go back
   - Multi-file batch selection with bulk download and direct link export
   - Drag files from the desktop into folders, or move selected vault files between folders
   - Persistent upload progress with percentage completion
