@@ -18,6 +18,31 @@ const getRootFolderId = (): string => {
   return process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim() || "root";
 };
 
+const FILE_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  "application/msword": ".doc",
+  "application/vnd.ms-word.document.macroenabled.12": ".docm",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.template": ".dotx",
+  "application/vnd.ms-powerpoint": ".ppt",
+  "application/vnd.ms-powerpoint.presentation.macroenabled.12": ".pptm",
+  "application/vnd.ms-powerpoint.slideshow.macroenabled.12": ".ppsm",
+  "application/vnd.ms-powerpoint.slideshow": ".pps",
+  "application/vnd.ms-powerpoint.template.macroenabled.12": ".potm",
+  "application/vnd.ms-powerpoint.template": ".pot",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+  "application/vnd.openxmlformats-officedocument.presentationml.slideshow": ".ppsx",
+  "application/vnd.openxmlformats-officedocument.presentationml.template": ".potx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/vnd.ms-excel": ".xls",
+  "application/vnd.oasis.opendocument.presentation": ".odp",
+};
+
+const ensureFileExtension = (filename: string, mimeType: string): string => {
+  if (/\.[^./\\]+$/.test(filename)) return filename;
+  const extension = FILE_EXTENSION_BY_MIME_TYPE[mimeType.toLowerCase()];
+  return extension ? `${filename}${extension}` : filename;
+};
+
 /**
  * Returns total vault statistics including file count, folder count, total size, and sync status.
  */
@@ -485,8 +510,8 @@ const handleStream = async (
       }
 
       const fileMeta = await FileMetadata.findOne({ driveId: fileId });
-      const filename = fileMeta?.name || "download";
       const mime = fileMeta?.mimeType || "application/octet-stream";
+      const filename = ensureFileExtension(fileMeta?.name || "download", mime);
       const safeAsciiName = filename
         .replace(/[^\x20-\x7E]/g, "_")
         .replace(/"/g, '\\"');
@@ -538,7 +563,7 @@ const handleStream = async (
     }
 
     const mimeType = file.mimeType || "application/octet-stream";
-    let downloadFileName = file.name;
+    let downloadFileName = ensureFileExtension(file.name, mimeType);
 
     if (mimeType === "application/vnd.google-apps.folder") {
       res.status(400).json({
@@ -554,8 +579,14 @@ const handleStream = async (
       .replace(/"/g, '\\"');
 
     if (mimeType.startsWith("application/vnd.google-apps.")) {
-      const exportMimeType = "application/pdf";
-      if (!downloadFileName.toLowerCase().endsWith(".pdf")) {
+      const isGoogleDocument = mimeType === "application/vnd.google-apps.document";
+      const exportMimeType =
+        isGoogleDocument && !isInline
+          ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          : "application/pdf";
+      if (isGoogleDocument && !isInline) {
+        downloadFileName = `${downloadFileName.replace(/\.(?:pdf|docx?|dotx?)$/i, "")}.docx`;
+      } else if (!downloadFileName.toLowerCase().endsWith(".pdf")) {
         downloadFileName += ".pdf";
       }
       const safePdfName = downloadFileName

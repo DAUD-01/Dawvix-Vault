@@ -46,6 +46,7 @@ It serves as an **authenticated streaming proxy** between your client device and
   - Dynamic Google Drive client resolution
   - `jsonwebtoken` (JWT) authentication & `bcryptjs` password hashing
   - Google Docs / Sheets / Slides conversion to PDF export stream
+  - Extension-correct downloads for extensionless Office files; native Google Docs download as editable DOCX
   - RFC 6266 & 5987 compliant Content-Disposition handling for multi-language filenames
 
 ---

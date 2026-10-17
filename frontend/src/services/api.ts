@@ -171,15 +171,28 @@ export const driveService = {
         responseType: 'blob',
       });
 
-      const blob = new Blob([response.data]);
+      const disposition = response.headers['content-disposition'] as string | undefined;
+      const encodedFilename = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+      const fallbackFilename = disposition?.match(/filename="?([^";]+)"?/i)?.[1];
+      let downloadFilename = fallbackFilename || filename;
+      if (encodedFilename) {
+        try {
+          downloadFilename = decodeURIComponent(encodedFilename);
+        } catch (error) {
+          console.warn('Unable to decode the download filename from the server response.', error);
+        }
+      }
+
+      const contentType = response.headers['content-type'] as string | undefined;
+      const blob = new Blob([response.data], contentType ? { type: contentType } : undefined);
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = filename;
+      link.download = downloadFilename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
     } catch (error) {
       const directUrl = `${API_BASE_URL}/drive/download/${fileId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
       window.open(directUrl, '_blank');

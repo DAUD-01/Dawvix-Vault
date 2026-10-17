@@ -209,6 +209,19 @@ export const getFileTypeMeta = (
     };
   }
 
+  if (
+    mime.includes('presentation') ||
+    mime.includes('powerpoint') ||
+    ['ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'odp'].includes(getFileExtension(fileName))
+  ) {
+    return {
+      color: colors.presentation,
+      bg: 'bg-orange-500/10',
+      border: 'border-orange-500/25',
+      label: 'Slides',
+    };
+  }
+
   if (mime.includes('document') || mime.includes('word') || mime.includes('markdown') || mime.startsWith('text/')) {
     return {
       color: colors.document,
@@ -224,15 +237,6 @@ export const getFileTypeMeta = (
       bg: 'bg-emerald-500/10',
       border: 'border-emerald-500/25',
       label: 'Sheet',
-    };
-  }
-
-  if (mime.includes('presentation') || mime.includes('powerpoint')) {
-    return {
-      color: colors.presentation,
-      bg: 'bg-orange-500/10',
-      border: 'border-orange-500/25',
-      label: 'Slides',
     };
   }
 
@@ -311,16 +315,20 @@ export const getFileIcon = (
     return <FileCode className={`${sizeClass} ${color}`} />;
   }
 
+  if (
+    mime.includes('presentation') ||
+    mime.includes('powerpoint') ||
+    ['ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'odp'].includes(getFileExtension(fileName))
+  ) {
+    return <Presentation className={`${sizeClass} ${color}`} />;
+  }
+
   if (mime.includes('pdf') || mime.includes('document') || mime.includes('word') || mime.includes('markdown') || mime.startsWith('text/')) {
     return <FileText className={`${sizeClass} ${color}`} />;
   }
 
   if (mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('csv')) {
     return <FileSpreadsheet className={`${sizeClass} ${color}`} />;
-  }
-
-  if (mime.includes('presentation') || mime.includes('powerpoint')) {
-    return <Presentation className={`${sizeClass} ${color}`} />;
   }
 
   if (mime.startsWith('image/')) {
