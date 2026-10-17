@@ -741,15 +741,6 @@ export const Dashboard: React.FC = () => {
     const currentItem = target.closest<HTMLElement>('[data-vault-file-item="true"]');
     if (!currentItem) return;
 
-    if (
-      (event.key === 'Backspace' || (event.altKey && event.key === 'ArrowLeft')) &&
-      breadcrumbs.length > 1
-    ) {
-      event.preventDefault();
-      handleNavigateBack();
-      return;
-    }
-
     const shouldMove =
       event.key === 'Home' ||
       event.key === 'End' ||
@@ -863,7 +854,8 @@ export const Dashboard: React.FC = () => {
       const isInput =
         activeEl?.tagName === 'INPUT' ||
         activeEl?.tagName === 'TEXTAREA' ||
-        activeEl?.getAttribute('contenteditable') === 'true';
+        activeEl?.tagName === 'SELECT' ||
+        (activeEl instanceof HTMLElement && activeEl.isContentEditable);
 
       if (e.key === '/' && !isInput) {
         e.preventDefault();
@@ -881,6 +873,54 @@ export const Dashboard: React.FC = () => {
       }
 
       if (isInput) return;
+
+      const isFileNavigationKey =
+        ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key);
+      const isBackNavigationKey = e.key === 'Backspace' || (e.altKey && e.key === 'ArrowLeft');
+      const isInsideModal =
+        Boolean(document.querySelector('[role="dialog"]')) ||
+        (activeEl instanceof HTMLElement && Boolean(activeEl.closest('[role="dialog"]')));
+
+      if (!isInsideModal && (isBackNavigationKey || isFileNavigationKey)) {
+        if (contextMenu.visible) return;
+
+        if (isBackNavigationKey) {
+          if (breadcrumbs.length > 1) {
+            e.preventDefault();
+            handleNavigateBack();
+          }
+          return;
+        }
+
+        const focusedFileItem =
+          activeEl instanceof HTMLElement &&
+          activeEl.closest<HTMLElement>('[data-vault-file-item="true"]');
+        if (focusedFileItem) return;
+
+        const canStartNavigation =
+          activeEl === document.body ||
+          activeEl === document.documentElement ||
+          (activeEl instanceof HTMLElement &&
+            Boolean(activeEl.closest('.glass-explorer')) &&
+            !activeEl.closest('button, a, input, textarea, select, [role="button"]'));
+
+        if (!canStartNavigation) return;
+
+        const fileItems = Array.from(
+          document.querySelectorAll<HTMLElement>('.glass-explorer [data-vault-file-item="true"]'),
+        );
+        if (fileItems.length === 0) return;
+
+        e.preventDefault();
+        if (e.key === 'Home') {
+          fileItems[0].focus();
+        } else if (e.key === 'End' || e.key === 'ArrowUp') {
+          fileItems[fileItems.length - 1].focus();
+        } else {
+          fileItems[0].focus();
+        }
+        return;
+      }
 
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
@@ -933,7 +973,16 @@ export const Dashboard: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [contextMenu, selectedFileIds, selectedItems, clipboard, currentFolderId, filteredFiles, isAdmin]);
+  }, [
+    contextMenu,
+    selectedFileIds,
+    selectedItems,
+    clipboard,
+    currentFolderId,
+    filteredFiles,
+    isAdmin,
+    breadcrumbs,
+  ]);
 
   return (
     <div
