@@ -307,7 +307,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-outline/[0.08] px-4 py-3 sm:px-6 bg-surface/90 shrink-0">
           <div className="flex items-center gap-3 min-w-0 pr-2">
-            {getFileBadge(file.mimeType, file.isFolder, "h-5 w-5", "p-2")}
+            {getFileBadge(file.mimeType, file.isFolder, "h-5 w-5", "p-2", "dark", file.name)}
             <div className="min-w-0">
               <h3
                 className="text-sm sm:text-base font-semibold text-slate-100 truncate"
@@ -656,7 +656,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             /* 6. Binary File Fallback */
             <div className="flex flex-col items-center justify-center p-8 max-w-md text-center">
               <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 mb-4 shadow-xl">
-                {getFileIcon(file.mimeType, file.isFolder, "h-14 w-14")}
+                {getFileIcon(file.mimeType, file.isFolder, "h-14 w-14", "dark", file.name)}
               </div>
               <h4 className="text-base font-semibold text-slate-100 mb-1">
                 No In-Browser Preview

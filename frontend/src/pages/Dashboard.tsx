@@ -14,7 +14,7 @@ import { FilePropertiesModal } from '../components/FilePropertiesModal';
 import { useAuth } from '../context/AuthContext';
 import { driveService } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
-import { formatBytes } from '../utils/fileUtils';
+import { formatBytes, isCodeFile } from '../utils/fileUtils';
 import {
   FileItem,
   BreadcrumbItem,
@@ -126,11 +126,7 @@ const matchesFileType = (file: FileItem, filterType: string): boolean => {
         hasExtension('zip', 'tar', 'gz', 'rar', '7z', 'bz2')
       );
     case 'code':
-      return (
-        mime.includes('code') ||
-        mime.includes('json') ||
-        hasExtension('js', 'ts', 'py', 'json', 'html', 'css', 'cpp', 'c', 'java')
-      );
+      return isCodeFile(mime, file.name);
     default:
       return false;
   }

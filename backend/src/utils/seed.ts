@@ -44,8 +44,11 @@ const runSeed = async () => {
     }
 
     // 2. Ensure Admin User exists
-    const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminUsername = process.env.ADMIN_USERNAME?.trim().toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminUsername || !adminPassword) {
+      throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be configured before seeding.');
+    }
 
     const existingAdmin = await User.findOne({ username: adminUsername });
     if (!existingAdmin) {
@@ -56,8 +59,10 @@ const runSeed = async () => {
     } else {
       if (existingAdmin.role !== 'admin') {
         existingAdmin.role = 'admin';
-        await existingAdmin.save();
       }
+      const isMatch = await existingAdmin.comparePassword(adminPassword);
+      if (!isMatch) existingAdmin.passwordHash = await bcrypt.hash(adminPassword, await bcrypt.genSalt(10));
+      await existingAdmin.save();
       console.log(`[Seed] Admin user "${adminUsername}" is active.`);
     }
 

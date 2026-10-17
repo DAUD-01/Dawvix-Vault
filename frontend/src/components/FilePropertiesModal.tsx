@@ -49,7 +49,7 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
       })
     : 'Unknown';
 
-  const typeMeta = getFileTypeMeta(item.mimeType, item.isFolder);
+  const typeMeta = getFileTypeMeta(item.mimeType, item.isFolder, 'dark', item.name);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65  animate-in fade-in duration-150">
@@ -79,7 +79,7 @@ export const FilePropertiesModal: React.FC<FilePropertiesModalProps> = ({
         <div className="mt-4 space-y-3.5 text-xs">
           {/* Header Summary */}
           <div className="flex items-center gap-3 rounded-2xl border border-outline/[0.08] bg-surface-variant p-3.5">
-            {getFileBadge(item.mimeType, item.isFolder, 'h-6 w-6', 'p-2.5')}
+            {getFileBadge(item.mimeType, item.isFolder, 'h-6 w-6', 'p-2.5', 'dark', item.name)}
             <div className="min-w-0 flex-1">
               <h4 className="font-semibold text-on-surface truncate text-xs sm:text-sm">
                 {item.name}

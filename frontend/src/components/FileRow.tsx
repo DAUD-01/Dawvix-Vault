@@ -142,7 +142,7 @@ export const FileRow: React.FC<FileRowProps> = ({
       })
     : '—';
 
-  const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder, mode);
+  const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder, mode, file.name);
 
   return (
     <tr
@@ -186,7 +186,7 @@ export const FileRow: React.FC<FileRowProps> = ({
             </div>
           )}
 
-          {getFileBadge(file.mimeType, file.isFolder, 'h-4 w-4', 'p-1.5', mode)}
+          {getFileBadge(file.mimeType, file.isFolder, 'h-4 w-4', 'p-1.5', mode, file.name)}
 
           <div className="flex flex-col min-w-0">
             <button

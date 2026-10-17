@@ -35,7 +35,15 @@ export const authMiddleware = (
     return;
   }
 
-  const secret = process.env.JWT_SECRET || 'super_secure_vault_jwt_secret_change_me_in_production';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.error('[Auth] JWT_SECRET is not configured.');
+    res.status(500).json({
+      success: false,
+      message: 'Authentication is unavailable because the server is not configured.',
+    });
+    return;
+  }
   let decoded: jwt.JwtPayload;
 
   try {
@@ -93,6 +101,18 @@ export const authMiddleware = (
             res.status(401).json({
               success: false,
               message: 'User account no longer exists. Please log in again.',
+            });
+            return;
+          }
+
+          const configuredUsernames = [
+            process.env.ADMIN_USERNAME?.trim().toLowerCase(),
+            process.env.VIEWER_USERNAME?.trim().toLowerCase(),
+          ];
+          if (!configuredUsernames.includes(user.username)) {
+            res.status(401).json({
+              success: false,
+              message: 'User account is not configured for this vault.',
             });
             return;
           }

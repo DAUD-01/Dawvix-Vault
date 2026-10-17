@@ -27,10 +27,43 @@ export interface FileTypeMeta {
   label: string;
 }
 
+const CODE_FILE_EXTENSIONS = new Set([
+  'asm', 'astro', 'bash', 'c', 'cc', 'class', 'clj', 'cljs', 'cljc', 'cmd',
+  'coffee', 'cpp', 'cr', 'cs', 'css', 'csh', 'cxx', 'dart', 'diff', 'dockerfile',
+  'ex', 'exs', 'fish', 'fs', 'fsi', 'fsx', 'go', 'gradle', 'groovy', 'h',
+  'haml', 'hh', 'hpp', 'hs', 'hxx', 'ipynb', 'java', 'jl', 'js', 'json', 'jsx', 'kt', 'kts',
+  'less', 'lua', 'm', 'makefile', 'ml', 'mli', 'mm', 'pl', 'pm', 'php', 'phtml',
+  'ps1', 'psm1', 'py', 'pyi', 'r', 'rb', 'rake', 'rmd', 'rs', 'sass', 'scala',
+  'sc', 'scss', 'sh', 'sql', 'swift', 't', 'ts', 'tsx', 'vb', 'vbs', 'vue',
+  'wasm', 'xml', 'xquery', 'y', 'yaml', 'yml', 'zig',
+]);
+
+const getFileExtension = (fileName: string): string =>
+  fileName.toLowerCase().split('.').pop() || '';
+
+export const isCodeFile = (mimeType: string, fileName: string): boolean => {
+  const mime = mimeType.toLowerCase();
+  return (
+    CODE_FILE_EXTENSIONS.has(getFileExtension(fileName)) ||
+    mime.includes('code') ||
+    mime.includes('json') ||
+    mime.includes('javascript') ||
+    mime.includes('typescript') ||
+    mime.includes('x-python') ||
+    mime.includes('x-java') ||
+    mime.includes('x-c') ||
+    mime.includes('x-go') ||
+    mime.includes('x-rust') ||
+    mime.includes('x-shellscript') ||
+    mime.startsWith('text/x-')
+  );
+};
+
 export const getFileTypeMeta = (
   mimeType: string,
   isFolder: boolean,
   mode: 'dark' | 'light' = 'dark',
+  fileName: string = '',
 ): FileTypeMeta => {
   const colors = mode === 'light'
     ? {
@@ -71,6 +104,15 @@ export const getFileTypeMeta = (
 
   const mime = mimeType.toLowerCase();
 
+  if (isCodeFile(mime, fileName)) {
+    return {
+      color: colors.code,
+      bg: 'bg-teal-500/10',
+      border: 'border-teal-500/25',
+      label: 'Code',
+    };
+  }
+
   if (mime.includes('pdf')) {
     return {
       color: colors.pdf,
@@ -80,7 +122,7 @@ export const getFileTypeMeta = (
     };
   }
 
-  if (mime.includes('document') || mime.includes('word') || mime.includes('markdown') || mime.includes('text')) {
+  if (mime.includes('document') || mime.includes('word') || mime.includes('markdown') || mime.startsWith('text/')) {
     return {
       color: colors.document,
       bg: 'bg-blue-500/10',
@@ -143,22 +185,6 @@ export const getFileTypeMeta = (
     };
   }
 
-  if (
-    mime.includes('json') ||
-    mime.includes('javascript') ||
-    mime.includes('typescript') ||
-    mime.includes('html') ||
-    mime.includes('css') ||
-    mime.includes('code')
-  ) {
-    return {
-      color: colors.code,
-      bg: 'bg-teal-500/10',
-      border: 'border-teal-500/25',
-      label: 'Code',
-    };
-  }
-
   return {
     color: colors.file,
     bg: 'bg-slate-500/10',
@@ -172,8 +198,9 @@ export const getFileIcon = (
   isFolder: boolean,
   sizeClass: string = 'h-4 w-4',
   mode: 'dark' | 'light' = 'dark',
+  fileName: string = '',
 ): JSX.Element => {
-  const color = getFileTypeMeta(mimeType, isFolder, mode).color;
+  const color = getFileTypeMeta(mimeType, isFolder, mode, fileName).color;
 
   if (isFolder) {
     const fillColor = mode === 'light' ? 'fill-amber-800/20' : 'fill-amber-400/20';
@@ -182,7 +209,11 @@ export const getFileIcon = (
 
   const mime = mimeType.toLowerCase();
 
-  if (mime.includes('pdf') || mime.includes('document') || mime.includes('word') || mime.includes('markdown') || mime.includes('text')) {
+  if (isCodeFile(mime, fileName)) {
+    return <FileCode className={`${sizeClass} ${color}`} />;
+  }
+
+  if (mime.includes('pdf') || mime.includes('document') || mime.includes('word') || mime.includes('markdown') || mime.startsWith('text/')) {
     return <FileText className={`${sizeClass} ${color}`} />;
   }
 
@@ -210,17 +241,6 @@ export const getFileIcon = (
     return <Archive className={`${sizeClass} ${color}`} />;
   }
 
-  if (
-    mime.includes('json') ||
-    mime.includes('javascript') ||
-    mime.includes('typescript') ||
-    mime.includes('html') ||
-    mime.includes('css') ||
-    mime.includes('code')
-  ) {
-    return <FileCode className={`${sizeClass} ${color}`} />;
-  }
-
   return <File className={`${sizeClass} ${color}`} />;
 };
 
@@ -230,13 +250,14 @@ export const getFileBadge = (
   iconSize: string = 'h-4 w-4',
   containerClass: string = 'p-2',
   mode: 'dark' | 'light' = 'dark',
+  fileName: string = '',
 ): JSX.Element => {
-  const meta = getFileTypeMeta(mimeType, isFolder, mode);
+  const meta = getFileTypeMeta(mimeType, isFolder, mode, fileName);
   return (
     <div
       className={`rounded-xl border ${meta.border} ${meta.bg} ${containerClass} flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105`}
     >
-      {getFileIcon(mimeType, isFolder, iconSize, mode)}
+      {getFileIcon(mimeType, isFolder, iconSize, mode, fileName)}
     </div>
   );
 };

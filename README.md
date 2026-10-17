@@ -116,15 +116,16 @@ Copy `backend/.env.example` to `backend/.env`:
 ```env
 PORT=5000
 MONGO_URI=mongodb://127.0.0.1:27017/university_vault
-JWT_SECRET=super_secure_vault_jwt_secret_change_me_in_production
+JWT_SECRET=replace-with-a-long-random-secret
 GOOGLE_DRIVE_ROOT_FOLDER_ID=root
 GOOGLE_CREDENTIALS_JSON=
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123
-VIEWER_PASSWORD=choose-a-strong-viewer-password
+ADMIN_USERNAME=your-admin-profile
+ADMIN_PASSWORD=your-admin-password
+VIEWER_USERNAME=your-viewer-profile
+VIEWER_PASSWORD=your-viewer-password
 ```
 
-The backend provisions a `viewer` account when `VIEWER_PASSWORD` is set. This account can browse, preview, and download files but cannot sync, upload, create, rename, move, copy, or delete files. Those operations are restricted to accounts with the `admin` role on the server; viewer controls are also hidden in the dashboard.
+The backend provisions only these two profiles and synchronizes their passwords from the environment variables. Existing database accounts outside these configured profiles are removed. The viewer account can browse, preview, and download files but cannot sync, upload, create, rename, move, copy, or delete files. Those operations are restricted to the configured admin profile.
 
 ### 3. Setting Up Google Cloud Service Account
 1. Open [Google Cloud Console](https://console.cloud.google.com/).
@@ -149,13 +150,9 @@ npm run dev:frontend
 - **Frontend**: [http://localhost:5173](http://localhost:5173)
 - **Backend**: [http://localhost:5000](http://localhost:5000)
 
-#### Default Admin Credentials:
-- **Username**: `admin`
-- **Password**: `admin123`
-
-#### Read-only Viewer:
-- **Username**: `viewer`
-- **Password**: Set by `VIEWER_PASSWORD` in `backend/.env`.
+#### Profiles
+- Admin and viewer usernames/passwords are set by `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `VIEWER_USERNAME`/`VIEWER_PASSWORD` in `backend/.env`.
+- No default login credentials are provided; configure both profiles before starting the backend.
 
 ---
 

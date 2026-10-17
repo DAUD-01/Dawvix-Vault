@@ -88,7 +88,7 @@ export const FileCard: React.FC<FileCardProps> = ({
     }
   };
 
-  const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder, mode);
+  const typeMeta = getFileTypeMeta(file.mimeType, file.isFolder, mode, file.name);
 
   return (
     <div
@@ -131,7 +131,7 @@ export const FileCard: React.FC<FileCardProps> = ({
               />
             </div>
           )}
-          {getFileBadge(file.mimeType, file.isFolder, 'h-5 w-5', 'p-2.5', mode)}
+          {getFileBadge(file.mimeType, file.isFolder, 'h-5 w-5', 'p-2.5', mode, file.name)}
         </div>
 
         <button

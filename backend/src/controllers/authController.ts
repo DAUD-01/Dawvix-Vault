@@ -20,6 +20,18 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const normalizedUsername = username.trim().toLowerCase();
+    const configuredUsernames = [
+      process.env.ADMIN_USERNAME?.trim().toLowerCase(),
+      process.env.VIEWER_USERNAME?.trim().toLowerCase(),
+    ];
+    if (!configuredUsernames.includes(normalizedUsername)) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid username or password.',
+      });
+      return;
+    }
+
     const user = await User.findOne({ username: normalizedUsername });
 
     if (!user) {
@@ -39,7 +51,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const secret = process.env.JWT_SECRET || 'super_secure_vault_jwt_secret_change_me_in_production';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET must be configured before users can log in.');
+    }
     const sessionId = randomUUID();
     await LoginSession.create({
       _id: sessionId,
@@ -105,69 +120,60 @@ export const ensureAdminAccount = async (): Promise<void> => {
       return;
     }
 
-    const adminUsername = (process.env.ADMIN_USERNAME || 'dawood').trim().toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'dawood8822';
-
-    if (adminUsername === 'viewer') {
-      console.error('[Auth] ADMIN_USERNAME cannot be "viewer"; the viewer role is reserved.');
-      return;
+    const adminUsername = process.env.ADMIN_USERNAME;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    const viewerUsername = process.env.VIEWER_USERNAME;
+    const viewerPassword = process.env.VIEWER_PASSWORD;
+    if (!adminUsername?.trim() || !adminPassword || !viewerUsername?.trim() || !viewerPassword) {
+      throw new Error('ADMIN_USERNAME, ADMIN_PASSWORD, VIEWER_USERNAME, and VIEWER_PASSWORD must be configured.');
     }
 
-    const accountsToEnsure = [
-      { username: adminUsername, password: adminPassword, role: 'admin' as const },
-      { username: 'admin', password: 'admin123', role: 'admin' as const },
+    const profiles = [
+      {
+        username: adminUsername.trim().toLowerCase(),
+        password: adminPassword,
+        role: 'admin' as const,
+      },
+      {
+        username: viewerUsername.trim().toLowerCase(),
+        password: viewerPassword,
+        role: 'viewer' as const,
+      },
     ];
+    if (profiles[0].username === profiles[1].username) {
+      throw new Error('ADMIN_USERNAME and VIEWER_USERNAME must be different.');
+    }
 
-    for (const acc of accountsToEnsure) {
-      const existing = await User.findOne({ username: acc.username });
+    for (const profile of profiles) {
+      const existing = await User.findOne({ username: profile.username });
       if (!existing) {
         const salt = await bcrypt.genSalt(10);
-        const passwordHash = await bcrypt.hash(acc.password, salt);
+        const passwordHash = await bcrypt.hash(profile.password, salt);
 
         await User.create({
-          username: acc.username,
+          username: profile.username,
           passwordHash,
-          role: acc.role,
+          role: profile.role,
         });
 
-        console.log(`[Auth] Account created successfully: "${acc.username}"`);
+        console.log(`[Auth] Account created successfully: "${profile.username}"`);
       } else {
-        if (existing.role !== acc.role) {
-          existing.role = acc.role;
+        if (existing.role !== profile.role) {
+          existing.role = profile.role;
         }
-        // Ensure password matches in case env changed
-        const isMatch = await existing.comparePassword(acc.password);
+        const isMatch = await existing.comparePassword(profile.password);
         if (!isMatch) {
           const salt = await bcrypt.genSalt(10);
-          existing.passwordHash = await bcrypt.hash(acc.password, salt);
-          console.log(`[Auth] Updated password for account: "${acc.username}"`);
+          existing.passwordHash = await bcrypt.hash(profile.password, salt);
+          console.log(`[Auth] Updated password for account: "${profile.username}"`);
         }
         await existing.save();
       }
     }
 
-    const viewerPassword = process.env.VIEWER_PASSWORD;
-    if (viewerPassword) {
-      const viewer = await User.findOne({ username: 'viewer' });
-      if (!viewer) {
-        const salt = await bcrypt.genSalt(10);
-        const passwordHash = await bcrypt.hash(viewerPassword, salt);
-        await User.create({ username: 'viewer', passwordHash, role: 'viewer' });
-        console.log('[Auth] Read-only viewer account created.');
-      } else {
-        const isMatch = await viewer.comparePassword(viewerPassword);
-        if (viewer.role !== 'viewer' || !isMatch) {
-          const salt = await bcrypt.genSalt(10);
-          viewer.passwordHash = await bcrypt.hash(viewerPassword, salt);
-          viewer.role = 'viewer';
-          await viewer.save();
-          console.log('[Auth] Read-only viewer account updated.');
-        }
-      }
-    } else {
-      console.warn('[Auth] VIEWER_PASSWORD is not configured; viewer account was not provisioned.');
-    }
+    await User.deleteMany({ username: { $nin: profiles.map((profile) => profile.username) } });
   } catch (error) {
     console.error('[Auth] Could not ensure accounts:', (error as Error).message);
+    throw error;
   }
 };

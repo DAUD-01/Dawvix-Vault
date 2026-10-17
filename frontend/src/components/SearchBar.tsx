@@ -6,6 +6,7 @@ import {
   List,
   Filter,
   ArrowUpDown,
+  ChevronDown,
   Globe,
   Folder,
   History,
@@ -308,67 +309,62 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <div
-          className={`relative flex h-[var(--control-h)] w-[var(--control-h)] shrink-0 items-center justify-center rounded-[var(--control-radius)] transition-colors focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
+        <label
+          className={`relative flex h-[var(--control-h)] items-center gap-2 rounded-[var(--control-radius)] border px-2.5 transition-colors focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
             filterType !== "all"
-              ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
-              : "text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
+              ? "border-[color:var(--color-primary-soft-border)] bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+              : "border-[color:var(--color-border-control)] bg-surface-variant text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-hover)]"
           }`}
-          data-active={filterType !== "all"}
         >
-          {filterType !== "all" && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--color-accent)] px-1 text-[11px] font-semibold leading-none text-[color:var(--color-on-primary)]">
-              1
-            </span>
-          )}
-          <Filter className="h-4 w-4" aria-hidden="true" />
+          <Filter className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="hidden text-xs font-medium sm:inline">Filter</span>
           <select
             name="file-type-filter"
             autoComplete="off"
             id="file-type-filter"
             value={filterType}
             onChange={(event) => onFilterChange(event.target.value)}
-            aria-label="Filter"
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Filter files by type"
+            className="max-w-[125px] cursor-pointer appearance-none bg-transparent pr-5 text-xs font-medium text-[color:var(--color-text-primary)] outline-none"
           >
             {categories.map((category) => (
-              <option key={category.id} value={category.id} className="bg-surface">
+              <option key={category.id} value={category.id}>
                 {category.label}
               </option>
             ))}
           </select>
-        </div>
+          <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5" aria-hidden="true" />
+        </label>
 
-        <div
-          className={`relative flex h-[var(--control-h)] w-[var(--control-h)] shrink-0 items-center justify-center rounded-[var(--control-radius)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
+        <label
+          className={`relative flex h-[var(--control-h)] items-center gap-2 rounded-[var(--control-radius)] border px-2.5 transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/40 ${
             !isDefaultSort
-              ? "bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
-              : "text-[color:var(--color-text-muted)]"
+              ? "border-[color:var(--color-primary-soft-border)] bg-[color:var(--color-primary-soft)] text-[color:var(--color-primary)]"
+              : "border-[color:var(--color-border-control)] bg-surface-variant text-[color:var(--color-text-muted)]"
           }`}
           data-active={!isDefaultSort}
         >
-          {!isDefaultSort ? (
-            <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[color:var(--color-accent)]" aria-hidden="true" />
-          ) : null}
-          <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+          <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="hidden text-xs font-medium sm:inline">Sort</span>
           <select
             name="sort-results"
             autoComplete="off"
             value={currentSortKey}
             onChange={(e) => handleSortSelect(e.target.value)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-label="Sort"
+            className="max-w-[140px] cursor-pointer appearance-none bg-transparent pr-5 text-xs font-medium text-[color:var(--color-text-primary)] outline-none"
+            aria-label="Sort files"
           >
-            <option value="name_asc" className="bg-surface">Name (A → Z)</option>
-            <option value="name_desc" className="bg-surface">Name (Z → A)</option>
-            <option value="size_desc" className="bg-surface">Size (Largest)</option>
-            <option value="size_asc" className="bg-surface">Size (Smallest)</option>
-            <option value="lastSyncedAt_desc" className="bg-surface">Date (Newest)</option>
-            <option value="lastSyncedAt_asc" className="bg-surface">Date (Oldest)</option>
-            <option value="mimeType_asc" className="bg-surface">Type (A → Z)</option>
-            <option value="mimeType_desc" className="bg-surface">Type (Z → A)</option>
+            <option value="name_asc">Name (A → Z)</option>
+            <option value="name_desc">Name (Z → A)</option>
+            <option value="size_desc">Size (Largest)</option>
+            <option value="size_asc">Size (Smallest)</option>
+            <option value="lastSyncedAt_desc">Date (Newest)</option>
+            <option value="lastSyncedAt_asc">Date (Oldest)</option>
+            <option value="mimeType_asc">Type (A → Z)</option>
+            <option value="mimeType_desc">Type (Z → A)</option>
           </select>
-        </div>
+          <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5" aria-hidden="true" />
+        </label>
 
         <div className="flex h-[var(--control-h)] shrink-0 items-center rounded-[var(--control-radius)] bg-surface-variant/60 p-1">
           <button
