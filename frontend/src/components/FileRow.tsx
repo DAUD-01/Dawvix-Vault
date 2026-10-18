@@ -179,10 +179,10 @@ export const FileRow: React.FC<FileRowProps> = ({
       } ${isCut ? 'opacity-40 border-dashed border-teal-500/40' : ''}`}
     >
       {/* File/Folder Name + Checkbox */}
-      <td className="py-2.5 pl-3 pr-2 text-sm sm:pl-4">
-        <div className="flex items-center gap-3">
+      <td className="py-2 pl-2 pr-1 text-sm sm:py-2.5 sm:pl-4 sm:pr-2">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {onToggleSelect && (
-            <div className="flex min-h-6 min-w-6 items-center justify-center">
+            <div className="flex min-h-6 min-w-6 shrink-0 items-center justify-center">
               <input
                 type="checkbox"
                 checked={isSelected}
@@ -194,7 +194,9 @@ export const FileRow: React.FC<FileRowProps> = ({
             </div>
           )}
 
-          {getFileBadge(file.mimeType, file.isFolder, 'h-4 w-4', 'p-1.5', mode, file.name)}
+          <span className="shrink-0">
+            {getFileBadge(file.mimeType, file.isFolder, 'h-4 w-4', 'p-1.5', mode, file.name)}
+          </span>
 
           <div className="flex flex-col min-w-0">
             <button
@@ -244,15 +246,15 @@ export const FileRow: React.FC<FileRowProps> = ({
       </td>
 
       {/* Action Buttons with strict alignment (LAY-027 to LAY-030) */}
-      <td className="py-2.5 pl-2 pr-3 text-right text-sm sm:pr-4">
-        <div className="inline-flex items-center gap-1 justify-end">
+      <td className="py-2 pl-1 pr-2 text-right text-sm sm:py-2.5 sm:pl-2 sm:pr-4">
+        <div className="inline-flex items-center justify-end gap-0.5 sm:gap-1">
           {/* Quick Action: Context menu */}
           {!file.isFolder ? (
             <button
               type="button"
               onClick={handleCopyLinkClick}
               aria-label={`Copy link for ${file.name}`}
-              className="glass-button flex min-h-9 min-w-9 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors"
+              className="glass-button hidden min-h-9 min-w-9 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors sm:flex"
             >
               {isCopied ? (
                 <Check className="h-3.5 w-3.5 text-teal-400" />
@@ -268,7 +270,7 @@ export const FileRow: React.FC<FileRowProps> = ({
               onClick={handleDownloadClick}
               disabled={isDownloading}
               aria-label={`Download ${file.name}`}
-              className="glass-button flex min-h-9 min-w-9 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors disabled:opacity-50"
+              className="glass-button hidden min-h-9 min-w-9 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors disabled:opacity-50 sm:flex"
             >
               {isDownloading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-400" />
@@ -287,7 +289,7 @@ export const FileRow: React.FC<FileRowProps> = ({
                 handleClick();
               }}
               aria-label={`Open folder ${file.name}`}
-              className="glass-button flex min-h-9 min-w-9 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors"
+              className="glass-button flex min-h-8 min-w-8 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors sm:min-h-9 sm:min-w-9"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -296,7 +298,7 @@ export const FileRow: React.FC<FileRowProps> = ({
               type="button"
               onClick={handlePreviewClick}
               aria-label={`Preview ${file.name}`}
-              className="glass-button flex min-h-9 min-w-9 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors"
+              className="glass-button flex min-h-8 min-w-8 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-surface-variant hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors sm:min-h-9 sm:min-w-9"
             >
               <Eye className="h-4 w-4" />
             </button>
@@ -309,7 +311,7 @@ export const FileRow: React.FC<FileRowProps> = ({
               onContextMenu?.(event, file);
             }}
             aria-label={`More actions for ${file.name}`}
-            className="glass-button flex min-h-9 min-w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-surface-variant hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors"
+            className="glass-button flex min-h-8 min-w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-surface-variant hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)] transition-colors sm:min-h-9 sm:min-w-9"
           >
             <MoreVertical className="h-4 w-4" aria-hidden="true" />
           </button>

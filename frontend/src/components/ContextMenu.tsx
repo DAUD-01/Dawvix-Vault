@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FileItem, VaultClipboard } from '../types';
 import {
   FolderPlus,
@@ -63,6 +63,28 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onRefresh,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x, y });
+
+  useLayoutEffect(() => {
+    const placeMenu = () => {
+      const menu = menuRef.current;
+      if (!menu) return;
+
+      const { width, height } = menu.getBoundingClientRect();
+      const nextPosition = {
+        x: Math.max(12, Math.min(x, window.innerWidth - width - 12)),
+        y: Math.max(12, Math.min(y, window.innerHeight - height - 12)),
+      };
+
+      setPosition((current) =>
+        current.x === nextPosition.x && current.y === nextPosition.y ? current : nextPosition,
+      );
+    };
+
+    placeMenu();
+    window.addEventListener('resize', placeMenu);
+    return () => window.removeEventListener('resize', placeMenu);
+  }, [x, y, targetItem]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -85,16 +107,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose]);
 
-  const menuWidth = 224;
-  const menuHeight = targetItem ? 380 : 230;
-  const adjustedX = Math.max(12, Math.min(x, window.innerWidth - menuWidth - 12));
-  const adjustedY = Math.max(12, Math.min(y, window.innerHeight - menuHeight - 12));
-
   return (
     <div
       ref={menuRef}
-      style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
-      className="fixed z-50 w-56 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-outline/[0.12] bg-surface/95 p-1.5 shadow-2xl glass-panel text-slate-200 text-xs animate-in fade-in zoom-in-95 duration-100 select-none ring-1 ring-white/[0.05]"
+      style={{ left: `${position.x}px`, top: `${position.y}px` }}
+      className="vault-context-menu fixed z-50 w-[min(14rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-2xl border border-outline/[0.12] bg-surface/95 p-1.5 shadow-2xl glass-panel text-slate-200 text-xs animate-in fade-in zoom-in-95 duration-100 select-none ring-1 ring-white/[0.05]"
       onClick={(e) => e.stopPropagation()}
     >
       {targetItem ? (

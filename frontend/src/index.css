@@ -131,11 +131,23 @@ option {
   :root {
     --control-h: 40px;
   }
+
+  .vault-context-menu button {
+    min-height: 44px;
+  }
 }
 
 @media (max-width: 899px) {
   :root {
     --gutter: 24px;
+  }
+}
+
+@media (max-width: 639px) {
+  :root {
+    --gutter: 12px;
+    --space-4: 12px;
+    --space-6: 16px;
   }
 }
 

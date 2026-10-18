@@ -1413,9 +1413,9 @@ export const Dashboard: React.FC = () => {
                 </div>
               )}
             </div>}
-            {isAdmin && <label className="inline-flex h-[var(--control-h)] cursor-pointer items-center gap-2 rounded-[var(--control-radius)] bg-[color:var(--color-accent)] px-3 text-[13px] font-medium text-[color:var(--color-on-primary)] transition-colors hover:brightness-110 focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]">
+            {isAdmin && <label aria-label="Upload files" className="inline-flex h-[var(--control-h)] cursor-pointer items-center gap-2 rounded-[var(--control-radius)] bg-[color:var(--color-accent)] px-2.5 text-[13px] font-medium text-[color:var(--color-on-primary)] transition-colors hover:brightness-110 focus-within:ring-2 focus-within:ring-[color:var(--color-accent)] sm:px-3">
               <UploadCloud className="h-4 w-4" aria-hidden="true" />
-              <span>Upload</span>
+              <span className="hidden sm:inline">Upload</span>
               <input
                 ref={uploadInputRef}
                 type="file"
@@ -1569,8 +1569,8 @@ export const Dashboard: React.FC = () => {
             </div>
           ) : isGrid ? (
             /* Grid View */
-            <div className="p-5">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+            <div className="p-2 sm:p-5">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
                 {filteredFiles.map((file) => (
                   <FileCard
                     key={file.id || file.driveId}
@@ -1602,7 +1602,7 @@ export const Dashboard: React.FC = () => {
                   <tr className="glass-table-header h-10 bg-surface-variant text-[12px] font-medium text-[color:var(--color-text-muted)]">
                     <th
                       aria-sort={sortBy === 'name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : undefined}
-                      className="w-1/2 pl-4 pr-3 sm:w-auto sm:pl-6"
+                      className="w-[68%] pl-2 pr-1 sm:w-auto sm:pl-6"
                     >
                       <div className="flex items-center gap-3">
                         <button
@@ -1671,7 +1671,7 @@ export const Dashboard: React.FC = () => {
                           (sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                       </button>
                     </th>
-                    <th className="w-1/2 pl-3 pr-4 text-right sm:w-auto sm:pr-6">
+                    <th className="w-[32%] pl-1 pr-2 text-right sm:w-auto sm:pr-6">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>

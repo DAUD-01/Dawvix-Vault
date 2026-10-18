@@ -303,7 +303,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           </button>
         </div>
 
-        <div className="relative min-w-0 flex-1" style={{ maxWidth: 480, minWidth: 200 }}>
+        <div className="relative min-w-0 flex-1" style={{ maxWidth: 480 }}>
           <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[color:var(--color-text-muted)]" aria-hidden="true" />
           <input
             ref={inputRef}

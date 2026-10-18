@@ -107,7 +107,7 @@ export const FileCard: React.FC<FileCardProps> = ({
       onContextMenu={handleContextMenu}
       data-selected={isSelected}
       data-drag-over={isDragOver}
-      className={`group relative h-36 overflow-hidden rounded-lg border p-4 transition-colors duration-150 glass-card ${
+      className={`group relative h-28 overflow-hidden rounded-lg border p-2.5 transition-colors duration-150 glass-card sm:h-36 sm:p-4 ${
         isDragOver
           ? 'border-primary bg-primary-container/40 ring-1 ring-primary'
           : isSelected
@@ -157,19 +157,19 @@ export const FileCard: React.FC<FileCardProps> = ({
       </div>
 
       {/* Card Content & Metadata */}
-      <div className="mt-4 min-w-0">
+      <div className="mt-2 min-w-0 sm:mt-4">
         <h4
           aria-hidden="true"
-          className="truncate text-sm font-semibold text-slate-200 transition-colors group-hover:text-teal-300"
+          className="truncate text-xs font-semibold text-slate-200 transition-colors group-hover:text-teal-300 sm:text-sm"
         >
           {file.name}
         </h4>
-        <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
-          <span className="font-medium text-slate-400">
+        <div className="mt-1 flex items-center justify-between gap-1 text-[10px] text-slate-500 sm:mt-1.5 sm:text-[11px]">
+          <span className="min-w-0 truncate font-medium text-slate-400">
             {file.isFolder ? 'Folder' : formatBytes(file.size)}
           </span>
           <span
-            className={`rounded-md border px-1.5 py-0.2 text-[9px] font-medium uppercase tracking-wider ${typeMeta.border} ${typeMeta.bg} ${typeMeta.color}`}
+            className={`max-w-[45%] truncate rounded-md border px-1 py-0.2 text-[8px] font-medium uppercase tracking-wide sm:px-1.5 sm:text-[9px] sm:tracking-wider ${typeMeta.border} ${typeMeta.bg} ${typeMeta.color}`}
           >
             {typeMeta.label}
           </span>

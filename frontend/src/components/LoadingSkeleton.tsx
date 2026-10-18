@@ -11,7 +11,7 @@ export const LoadingSkeleton: React.FC<{ isGrid?: boolean }> = ({ isGrid = false
         role="status"
         aria-busy="true"
         aria-label="Loading files"
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 motion-safe:animate-pulse"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4 motion-safe:animate-pulse"
       >
         {Array.from({ length: 8 }).map((_, i) => (
           <div
