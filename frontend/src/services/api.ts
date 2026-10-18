@@ -164,6 +164,14 @@ export const driveService = {
     return response.data;
   },
 
+  getFileBlob: async (fileId: string, signal?: AbortSignal): Promise<Blob> => {
+    const response = await api.get<Blob>(`/drive/view/${fileId}`, {
+      responseType: 'blob',
+      signal,
+    });
+    return response.data;
+  },
+
   downloadFile: async (fileId: string, filename: string): Promise<void> => {
     const token = localStorage.getItem('token');
     try {

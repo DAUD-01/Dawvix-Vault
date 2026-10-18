@@ -26,7 +26,7 @@ It serves as an **authenticated streaming proxy** between your client device and
   - Tailwind CSS + Lucide Icons (`lucide-react`)
   - Axios with JWT Interceptors & Blob Stream Downloader
   - Deep URL state syncing (`?folder=<id>`) for bookmarking and history
-  - In-window Multi-Format File Preview Modal (PDF, images with zoom, video & audio with playback speed controls, and code/text with line numbers & syntax wrapping)
+  - In-window Multi-Format File Preview Modal (PDF, Word, PowerPoint, Excel, images with zoom, video & audio with playback speed controls, and code/text with line numbers & syntax wrapping)
   - Extension-aware language names and matching file icons, with a unified Code filter across languages
   - Previous / Next keyboard arrow browsing within folders
   - File explorer keyboard navigation: arrow keys to move, type a name prefix to jump to a file, Home/End to jump to list ends, Enter to open, and Backspace / Alt+Left to go back
@@ -86,6 +86,7 @@ university-vault/
 │   │   │   ├── Breadcrumbs.tsx       # Clickable folder navigation stack
 │   │   │   ├── FileCard.tsx          # Grid view card with multi-select & actions
 │   │   │   ├── FilePreviewModal.tsx  # In-window viewer with zoom, speed & code lines
+│   │   │   ├── OfficeFilePreview.tsx # Browser-based Word, PowerPoint & Excel previews
 │   │   │   ├── FileRow.tsx           # List view table row with checkboxes
 │   │   │   ├── LoadingSkeleton.tsx   # Sleek skeleton loader
 │   │   │   ├── Navbar.tsx            # App header with live vault storage stats

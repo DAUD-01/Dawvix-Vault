@@ -12,6 +12,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { FileItem } from "../types";
 import { driveService } from "../services/api";
 import { getCodeFileType, getFileBadge, getFileIcon, formatBytes } from "../utils/fileUtils";
+import { getOfficeFileKind, OfficeFilePreview } from "./OfficeFilePreview";
 import {
   X,
   Download,
@@ -252,6 +253,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const viewUrl = driveService.getViewUrl(file.driveId);
   const mime = file.mimeType.toLowerCase();
   const name = file.name.toLowerCase();
+  const officeFileKind = getOfficeFileKind(file.name, file.mimeType);
 
   const isPdfOrDoc =
     mime.includes("pdf") ||
@@ -403,7 +405,9 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
         {/* Modal Body */}
         <div className="relative flex-1 w-full overflow-hidden bg-slate-950 flex items-center justify-center">
-          {isPdfOrDoc ? (
+          {officeFileKind ? (
+            <OfficeFilePreview file={file} kind={officeFileKind} />
+          ) : isPdfOrDoc ? (
             <iframe
               src={viewUrl}
               className="w-full h-full border-0 bg-slate-900"
